@@ -1,0 +1,38 @@
+
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  industry  String
+  size      String
+  geography String
+  createdAt DateTime @default(now())
+
+  surveys   Survey[]
+}
+
+model Survey {
+  id              String   @id @default(uuid())
+  organizationId  String? 
+  organization    Organization? @relation(fields: [organizationId], references: [id]) 
+  dataScore       Float
+  techScore       Float
+  aiUsageScore    Float
+  workforceScore  Float
+  leadershipScore Float
+  governanceScore Float
+
+  qualitative     String
+
+  maturityLevel   String?
+  createdAt       DateTime @default(now())
+}
