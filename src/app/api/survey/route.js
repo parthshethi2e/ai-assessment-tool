@@ -31,15 +31,15 @@ export async function POST(req) {
 
     console.log("STEP 4: DB saved");
 
-    // const analysis = await analyzeSurveyWithAI({
-    //   score,
-    //   maturity,
-    //   qualitative: body.qualitative,
-    // });
+    const analysis = await analyzeSurveyWithAI({
+      score,
+      maturity,
+      qualitative: body.qualitative,
+    });
 
     console.log("STEP 5: AI analysis done");
 
-    // const recommendations = await generateRecommendations(analysis);
+    const recommendations = await generateRecommendations(analysis);
 
     console.log("STEP 6: Recommendations done");
 

@@ -1,5 +1,3 @@
-
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,27 +10,23 @@ datasource db {
 model Organization {
   id        String   @id @default(uuid())
   name      String
-  industry  String
-  size      String
-  geography String
+  surveys   Survey[] // 1 → many relation
   createdAt DateTime @default(now())
-
-  surveys   Survey[]
 }
 
 model Survey {
-  id              String   @id @default(uuid())
-  organizationId  String? 
-  organization    Organization? @relation(fields: [organizationId], references: [id]) 
-  dataScore       Float
-  techScore       Float
-  aiUsageScore    Float
-  workforceScore  Float
-  leadershipScore Float
-  governanceScore Float
-
-  qualitative     String
-
-  maturityLevel   String?
-  createdAt       DateTime @default(now())
+  id              String        @id @default(uuid())
+  organizationId  String?
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+  dataScore       Float?
+  techScore       Float?
+  aiUsageScore    Float?
+  workforceScore  Float?
+  leadershipScore Float?
+  governanceScore Float?
+  finalScore      Float
+  maturityLevel   String
+  answers         Json
+  aiInsights      Json
+  createdAt       DateTime      @default(now())
 }

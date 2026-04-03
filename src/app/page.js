@@ -1,80 +1,175 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 
-export default function SurveyPage() {
-  const [form, setForm] = useState({
-    dataScore: 3,
-    techScore: 3,
-    aiUsageScore: 3,
-    workforceScore: 3,
-    leadershipScore: 3,
-    governanceScore: 3,
-    qualitative: "",
-  });
-
-  const [result, setResult] = useState(null);
-
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async () => {
-    const res = await fetch("/api/survey", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(form),
-    });
-
-    const data = await res.json();
-    setResult(data);
-  };
+export default function Home() {
+  const router = useRouter();
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>AI Maturity Survey</h1>
+    <div
+      style={{
+        fontFamily: "Inter, sans-serif",
+        background: "#f9fafb",
+        minHeight: "100vh",
+      }}
+    >
+      {/* NAVBAR */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          padding: "20px 40px",
+          background: "white",
+          borderBottom: "1px solid #eee",
+        }}
+      >
+        <h2 style={{ fontWeight: "bold" }}>AI Assess</h2>
 
-      {[
-        "dataScore",
-        "techScore",
-        "aiUsageScore",
-        "workforceScore",
-        "leadershipScore",
-        "governanceScore",
-      ].map((field) => (
-        <div key={field}>
-          <label>{field}</label>
-          <input
-            type="number"
-            name={field}
-            value={form[field]}
-            onChange={handleChange}
-            min="1"
-            max="5"
-          />
+        <div>
+          <button
+            onClick={() => router.push("/reports")}
+            style={navBtn}
+          >
+            Reports
+          </button>
         </div>
-      ))}
+      </div>
 
-      <div>
-        <label>Qualitative Input</label>
-        <textarea
-          name="qualitative"
-          value={form.qualitative}
-          onChange={handleChange}
+      {/* HERO SECTION */}
+      <div
+        style={{
+          textAlign: "center",
+          padding: "80px 20px",
+          maxWidth: 900,
+          margin: "auto",
+        }}
+      >
+        <h1
+          style={{
+            fontSize: 42,
+            fontWeight: "bold",
+            marginBottom: 20,
+          }}
+        >
+          AI Readiness Assessment
+        </h1>
+
+        <p
+          style={{
+            fontSize: 18,
+            color: "#555",
+            marginBottom: 30,
+          }}
+        >
+          Evaluate your organization's AI maturity and get
+          data-driven insights, roadmap, and recommendations.
+        </p>
+
+        <div style={{ display: "flex", gap: 15, justifyContent: "center" }}>
+          <button
+            onClick={() => router.push("/survey")}
+            style={primaryBtn}
+          >
+            Start Assessment →
+          </button>
+
+          <button
+            onClick={() => router.push("/reports")}
+            style={secondaryBtn}
+          >
+            View Reports
+          </button>
+        </div>
+      </div>
+
+      {/* FEATURES */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+          gap: 20,
+          padding: "40px",
+          maxWidth: 1000,
+          margin: "auto",
+        }}
+      >
+        <FeatureCard
+          title="AI Maturity Score"
+          desc="Get a clear score of your organization's AI readiness level."
+        />
+
+        <FeatureCard
+          title="AI Insights"
+          desc="Identify gaps, opportunities, and risks instantly."
+        />
+
+        <FeatureCard
+          title="Roadmap"
+          desc="Receive a structured AI transformation roadmap."
+        />
+
+        <FeatureCard
+          title="Tool Recommendations"
+          desc="Discover the best tools tailored to your needs."
         />
       </div>
 
-      <button onClick={handleSubmit}>Submit</button>
-
-      {result && (
-        <div style={{ marginTop: 20 }}>
-          <h2>Result</h2>
-          <p>Score: {result.score}</p>
-          <p>Maturity: {result.maturity}</p>
-        </div>
-      )}
+      {/* FOOTER */}
+      <div
+        style={{
+          textAlign: "center",
+          padding: 20,
+          color: "#777",
+          fontSize: 14,
+        }}
+      >
+        © 2026 AI Assess • Built with AI 🚀
+      </div>
     </div>
   );
 }
+
+function FeatureCard({ title, desc }) {
+  return (
+    <div
+      style={{
+        background: "white",
+        padding: 20,
+        borderRadius: 12,
+        border: "1px solid #eee",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
+      }}
+    >
+      <h3 style={{ marginBottom: 10 }}>{title}</h3>
+      <p style={{ color: "#555", fontSize: 14 }}>{desc}</p>
+    </div>
+  );
+}
+
+const primaryBtn = {
+  padding: "14px 24px",
+  background: "#6366f1",
+  color: "white",
+  borderRadius: 8,
+  border: "none",
+  fontSize: 16,
+  cursor: "pointer",
+};
+
+const secondaryBtn = {
+  padding: "14px 24px",
+  background: "white",
+  border: "1px solid #ddd",
+  borderRadius: 8,
+  fontSize: 16,
+  cursor: "pointer",
+};
+
+const navBtn = {
+  padding: "8px 14px",
+  background: "#111827",
+  color: "white",
+  borderRadius: 6,
+  border: "none",
+  cursor: "pointer",
+};

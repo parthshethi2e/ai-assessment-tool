@@ -1,25 +1,35 @@
-import { openai } from "@/lib/openai";
+export function generateRecommendations(categoryScores) {
+  let recommendations = [];
 
-export async function generateRecommendations(analysis) {
-  const prompt = `
-Based on this analysis:
+  if (categoryScores.data < 3) {
+    recommendations.push(
+      "Improve data quality, governance, and centralization"
+    );
+  }
 
-${analysis}
+  if (categoryScores["ai-usage"] < 3) {
+    recommendations.push(
+      "Start with pilot AI use cases and gradually scale"
+    );
+  }
 
-Generate a roadmap:
+  if (categoryScores.leadership < 3) {
+    recommendations.push(
+      "Define a clear AI strategy and leadership vision"
+    );
+  }
 
-Return JSON:
-{
-  "short_term": [],
-  "mid_term": [],
-  "long_term": []
-}
-`;
+  if (categoryScores.workforce < 3) {
+    recommendations.push(
+      "Invest in AI training and hiring skilled talent"
+    );
+  }
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-  });
+  if (categoryScores.governance < 3) {
+    recommendations.push(
+      "Establish AI governance and compliance frameworks"
+    );
+  }
 
-  return response.choices[0].message.content;
+  return recommendations;
 }

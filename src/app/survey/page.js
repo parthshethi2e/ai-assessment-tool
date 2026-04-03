@@ -1,117 +1,191 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
-const steps = [
-  "Data",
-  "Technology",
-  "AI Usage",
-  "Workforce",
-  "Leadership",
-  "Governance",
-  "Summary",
-];
+export default function OrganizationPage() {
+  const router = useRouter();
 
-export default function SurveyPage() {
-  const [step, setStep] = useState(0);
-
-  const [form, setForm] = useState({
-    dataScore: 3,
-    techScore: 3,
-    aiUsageScore: 3,
-    workforceScore: 3,
-    leadershipScore: 3,
-    governanceScore: 3,
-    qualitative: "",
+  const [org, setOrg] = useState({
+    name: "",
+    industry: "",
+    size: "",
+    geography: "",
+    contactName: "",
+    email: "",
   });
 
-  const [result, setResult] = useState(null);
+  const [errors, setErrors] = useState({});
 
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: Number(e.target.value) || e.target.value });
+  // ---------- STYLES ----------
+  const container = {
+    minHeight: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    background: "#f5f7fb",
   };
 
-  const next = () => setStep((s) => s + 1);
-  const prev = () => setStep((s) => s - 1);
-
-  const handleSubmit = async () => {
-    const res = await fetch("/api/survey", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(form),
-    });
-
-    const data = await res.json();
-    setResult(data);
+  const card = {
+    width: "600px",
+    background: "#fff",
+    padding: "30px",
+    borderRadius: "12px",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
   };
 
+  const input = (field) => ({
+    width: "100%",
+    padding: "12px",
+    borderRadius: "10px",
+    border: errors[field] ? "1px solid red" : "1px solid #e5e7eb",
+    fontSize: "14px",
+    outline: "none",
+  });
+
+  const errorText = {
+    color: "red",
+    fontSize: "12px",
+    marginTop: "4px",
+  };
+
+  const button = {
+    marginTop: "15px",
+    padding: "14px",
+    background: "#4f46e5",
+    color: "white",
+    border: "none",
+    borderRadius: "10px",
+    cursor: "pointer",
+    fontWeight: "600",
+    width: "100%",
+  };
+
+  // ---------- VALIDATION ----------
+  const validate = () => {
+    let newErrors = {};
+
+    if (!org.name) newErrors.name = "Organization name required";
+    if (!org.industry) newErrors.industry = "Select industry";
+    if (!org.size) newErrors.size = "Select company size";
+    if (!org.email || !org.email.includes("@"))
+      newErrors.email = "Valid email required";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // ---------- NEXT ----------
+  const handleNext = () => {
+    if (!validate()) return;
+
+    localStorage.setItem("org", JSON.stringify(org));
+    router.push("/survey/data");
+  };
+
+  // ---------- UI ----------
   return (
-    <div style={{ padding: 30, maxWidth: 500, margin: "auto" }}>
-      <h1>AI Maturity Survey</h1>
+    <div style={container}>
+      <div style={card}>
+        <h1 style={{ fontSize: 24, fontWeight: 600 }}>
+          Organization Profile
+        </h1>
 
-      <p>
-        Step {step + 1} of {steps.length}: <b>{steps[step]}</b>
-      </p>
+        <p style={{ color: "#666", marginBottom: 20 }}>
+          Let’s understand your organization context
+        </p>
 
-      {/* STEP CONTENT */}
-      {step === 0 && (
-        <input type="range" name="dataScore" min="1" max="5" value={form.dataScore} onChange={handleChange} />
-      )}
+        <div style={{ display: "grid", gap: "15px" }}>
+          {/* NAME */}
+          <div>
+            <input
+              placeholder="Organization Name"
+              style={input("name")}
+              onChange={(e) =>
+                setOrg({ ...org, name: e.target.value })
+              }
+            />
+            {errors.name && <p style={errorText}>{errors.name}</p>}
+          </div>
 
-      {step === 1 && (
-        <input type="range" name="techScore" min="1" max="5" value={form.techScore} onChange={handleChange} />
-      )}
+          {/* INDUSTRY + SIZE */}
+          <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ width: "100%" }}>
+              <select
+                style={input("industry")}
+                onChange={(e) =>
+                  setOrg({ ...org, industry: e.target.value })
+                }
+              >
+                <option value="">Select Industry</option>
+                <option>Healthcare</option>
+                <option>Technology</option>
+                <option>Finance</option>
+                <option>Retail</option>
+              </select>
+              {errors.industry && (
+                <p style={errorText}>{errors.industry}</p>
+              )}
+            </div>
 
-      {step === 2 && (
-        <input type="range" name="aiUsageScore" min="1" max="5" value={form.aiUsageScore} onChange={handleChange} />
-      )}
+            <div style={{ width: "100%" }}>
+              <select
+                style={input("size")}
+                onChange={(e) =>
+                  setOrg({ ...org, size: e.target.value })
+                }
+              >
+                <option value="">Company Size</option>
+                <option>1-10</option>
+                <option>10-50</option>
+                <option>50-200</option>
+                <option>200+</option>
+              </select>
+              {errors.size && (
+                <p style={errorText}>{errors.size}</p>
+              )}
+            </div>
+          </div>
 
-      {step === 3 && (
-        <input type="range" name="workforceScore" min="1" max="5" value={form.workforceScore} onChange={handleChange} />
-      )}
+          {/* GEOGRAPHY */}
+          <input
+            placeholder="Geography (Optional)"
+            style={input()}
+            onChange={(e) =>
+              setOrg({ ...org, geography: e.target.value })
+            }
+          />
 
-      {step === 4 && (
-        <input type="range" name="leadershipScore" min="1" max="5" value={form.leadershipScore} onChange={handleChange} />
-      )}
+          {/* CONTACT */}
+          <div style={{ display: "flex", gap: 10 }}>
+            <input
+              placeholder="Your Name"
+              style={input()}
+              onChange={(e) =>
+                setOrg({ ...org, contactName: e.target.value })
+              }
+            />
 
-      {step === 5 && (
-        <input type="range" name="governanceScore" min="1" max="5" value={form.governanceScore} onChange={handleChange} />
-      )}
+            <div style={{ width: "100%" }}>
+              <input
+                placeholder="Email"
+                style={input("email")}
+                onChange={(e) =>
+                  setOrg({ ...org, email: e.target.value })
+                }
+              />
+              {errors.email && (
+                <p style={errorText}>{errors.email}</p>
+              )}
+            </div>
+          </div>
 
-      {step === 6 && (
-        <textarea
-          name="qualitative"
-          placeholder="Describe your AI challenges..."
-          value={form.qualitative}
-          onChange={handleChange}
-        />
-      )}
-
-      {/* NAVIGATION */}
-      <div style={{ marginTop: 20 }}>
-        {step > 0 && <button onClick={prev}>Back</button>}
-
-        {step < steps.length - 1 ? (
-          <button onClick={next} style={{ marginLeft: 10 }}>
-            Next
+          {/* BUTTON */}
+          <button onClick={handleNext} style={button}>
+            Begin Assessment →
           </button>
-        ) : (
-          <button onClick={handleSubmit} style={{ marginLeft: 10 }}>
-            Submit
-          </button>
-        )}
-      </div>
-
-      {/* RESULT */}
-      {result && (
-        <div style={{ marginTop: 30 }}>
-          <h2>Result</h2>
-          <p>Score: {result.score}</p>
-          <p>Maturity: {result.maturity}</p>
         </div>
-      )}
+      </div>
     </div>
   );
 }

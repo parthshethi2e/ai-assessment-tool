@@ -1,37 +1,29 @@
-import { openai } from "@/lib/openai";
+export async function analyzeSurveyWithAI(data) {
+  const res = await fetch("/api/ai-analysis", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
 
-export async function analyzeSurveyWithAI({ score, maturity, qualitative }) {
-  const prompt = `
-You are an AI transformation expert.
-
-Organization maturity score: ${score}
-Level: ${maturity}
-
-User input:
-${qualitative}
-
-Tasks:
-1. Identify top 3 gaps
-2. Identify 3 opportunities
-3. Explain why this maturity level fits
-
-Return JSON:
-{
-  "gaps": [],
-  "opportunities": [],
-  "summary": ""
-}
-`;
+  const json = await res.json();
 
   try {
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-    });
+    let text = json.result;
 
-    return response.choices[0].message.content;
+    // 🔥 CLEAN AI RESPONSE
+    text = text.replace(/```json|```/g, "").trim();
+
+    return JSON.parse(text);
   } catch (err) {
-    console.error("OPENAI ERROR:", err);
-    throw err;
+    console.error("PARSE ERROR:", err);
+    return {
+      gaps: [],
+      opportunities: [],
+      summary: "Parsing failed",
+      roadmap: { short_term: [], mid_term: [], long_term: [] },
+      tools: { data: [], ai: [], cloud: [] },
+    };
   }
 }
