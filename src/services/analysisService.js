@@ -1,29 +1,17 @@
-export async function analyzeSurveyWithAI(data) {
-  const res = await fetch("/api/ai-analysis", {
+export async function analyzeSurveyWithAI(payload) {
+  const response = await fetch("/api/ai-analysis", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify(payload),
   });
 
-  const json = await res.json();
+  const json = await response.json();
 
-  try {
-    let text = json.result;
-
-    // 🔥 CLEAN AI RESPONSE
-    text = text.replace(/```json|```/g, "").trim();
-
-    return JSON.parse(text);
-  } catch (err) {
-    console.error("PARSE ERROR:", err);
-    return {
-      gaps: [],
-      opportunities: [],
-      summary: "Parsing failed",
-      roadmap: { short_term: [], mid_term: [], long_term: [] },
-      tools: { data: [], ai: [], cloud: [] },
-    };
+  if (!response.ok) {
+    throw new Error(json.error || "AI analysis failed");
   }
+
+  return json.analysis;
 }

@@ -1,30 +1,33 @@
 import { prisma } from "@/lib/prisma";
 
-export async function POST(req) {
+export async function POST(request) {
   try {
-    const body = await req.json();
+    const body = await request.json();
+    const scores = body.categoryScores || {};
 
     const survey = await prisma.survey.create({
       data: {
         finalScore: body.finalScore,
         maturityLevel: body.maturity,
-
-        // optional category scores (safe)
-        dataScore: body.categoryScores?.data || null,
-        techScore: body.categoryScores?.technology || null,
-        aiUsageScore: body.categoryScores?.["ai-usage"] || null,
-        workforceScore: body.categoryScores?.workforce || null,
-        leadershipScore: body.categoryScores?.leadership || null,
-        governanceScore: body.categoryScores?.governance || null,
-
-        answers: body.answers,
-        aiInsights: body.ai,
+        dataScore: scores.data ?? null,
+        techScore: scores.technology ?? null,
+        aiUsageScore: scores.adoption ?? null,
+        workforceScore: scores.people ?? null,
+        leadershipScore: scores.strategy ?? null,
+        governanceScore: scores.governance ?? null,
+        answers: {
+          profile: body.draft?.profile || {},
+          notes: body.draft?.notes || {},
+          responses: body.draft?.responses || {},
+          assessment: body.assessment || {},
+        },
+        aiInsights: body.ai || {},
       },
     });
 
     return Response.json({ success: true, id: survey.id });
   } catch (error) {
-    console.error("SAVE ERROR:", error);
-    return Response.json({ error: "Save failed" }, { status: 500 });
+    console.error("SAVE RESULT ERROR:", error);
+    return Response.json({ error: "Unable to save report" }, { status: 500 });
   }
 }

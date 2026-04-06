@@ -1,7 +1,20 @@
-import { prisma } from "@/lib/prisma";
 import puppeteer from "puppeteer";
+import { prisma } from "@/lib/prisma";
 
-export async function GET(req, { params }) {
+function parseJson(value) {
+  return typeof value === "string" ? JSON.parse(value) : value;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+export async function GET(_request, { params }) {
   const { id } = await params;
 
   const report = await prisma.survey.findUnique({
@@ -12,176 +25,265 @@ export async function GET(req, { params }) {
     return new Response("Report not found", { status: 404 });
   }
 
-  const ai =
-    typeof report.aiInsights === "string"
-      ? JSON.parse(report.aiInsights)
-      : report.aiInsights;
+  const answers = parseJson(report.answers) || {};
+  const ai = parseJson(report.aiInsights) || {};
+  const profile = answers.profile || {};
+  const notes = answers.notes || {};
+  const assessment = answers.assessment || {};
 
-  // ✅ Safe helpers
-  const renderText = (item) => {
-    if (!item) return "";
-    if (typeof item === "string") return item;
-    return item.description || item.title || JSON.stringify(item);
-  };
-
-  const renderTitle = (item) => {
-    if (!item || typeof item === "string") return "";
-    return item.area || item.opportunity || "";
-  };
+  const sectionScores = (assessment.scoredSections || [])
+    .map(
+      (section) => `
+        <div class="score-row">
+          <div class="score-head">
+            <span>${escapeHtml(section.title)}</span>
+            <span>${escapeHtml(section.score)}/5</span>
+          </div>
+          <div class="bar"><div class="fill" style="width:${(Number(section.score || 0) / 5) * 100}%"></div></div>
+        </div>
+      `
+    )
+    .join("");
 
   const html = `
-  <html>
-    <head>
-      <style>
-        body { font-family: sans-serif; padding: 40px; }
-        h1 { font-size: 28px; }
-
-        .card {
-          background: #f4f6ff;
-          padding: 20px;
-          border-radius: 10px;
-          margin-bottom: 20px;
-        }
-
-        .section { margin-top: 30px; }
-
-        .box {
-          padding: 10px;
-          background: #f9fafb;
-          border-radius: 6px;
-          margin-bottom: 8px;
-        }
-
-        .gap { background: #ffe4e6; }
-        .opp { background: #dcfce7; }
-
-        .chip {
-          display: inline-block;
-          padding: 6px 12px;
-          margin: 4px;
-          background: #eef2ff;
-          border-radius: 20px;
-          font-size: 12px;
-        }
-
-        h4 { margin-top: 15px; }
-
-        .page-break {
-          page-break-before: always;
-        }
-      </style>
-    </head>
-
-    <body>
-
-      <h1>AI Maturity Report</h1>
-
-      <div class="card">
-        <h2>Score: ${report.finalScore.toFixed(2)}</h2>
-        <h3>Maturity: ${report.maturityLevel}</h3>
-      </div>
-
-      <div class="section">
-        <h3>Gaps</h3>
-        ${(ai?.gaps || [])
-          .map(
-            (g) => `
-          <div class="box gap">
-            <strong>${renderTitle(g)}</strong>
-            <p>${renderText(g)}</p>
-          </div>`
-          )
-          .join("")}
-      </div>
-
-      <div class="section">
-        <h3>Opportunities</h3>
-        ${(ai?.opportunities || [])
-          .map(
-            (o) => `
-          <div class="box opp">
-            <strong>${renderTitle(o)}</strong>
-            <p>${renderText(o)}</p>
-          </div>`
-          )
-          .join("")}
-      </div>
-
-      <div class="section">
-        <h3>Executive Summary</h3>
-        <p><strong>Current State:</strong> ${ai?.summary?.current_state || ""}</p>
-        <p><strong>Key Risk:</strong> ${ai?.summary?.key_risk || ""}</p>
-        <p><strong>Recommended Focus:</strong> ${ai?.summary?.recommended_focus || ""}</p>
-      </div>
-
-      <div class="page-break"></div>
-
-      <div class="section">
-        <h3>AI Transformation Roadmap</h3>
-
-        <h4>Short Term</h4>
-        ${(ai?.roadmap?.short_term || [])
-          .map((item) => `<div class="box">${renderText(item)}</div>`)
-          .join("")}
-
-        <h4>Mid Term</h4>
-        ${(ai?.roadmap?.mid_term || [])
-          .map((item) => `<div class="box">${renderText(item)}</div>`)
-          .join("")}
-
-        <h4>Long Term</h4>
-        ${(ai?.roadmap?.long_term || [])
-          .map((item) => `<div class="box">${renderText(item)}</div>`)
-          .join("")}
-      </div>
-
-      <div class="section">
-        <h3>Recommended Tools</h3>
-
-        <h4>Data</h4>
-        <div>
-          ${(ai?.tools?.data || [])
-            .map((tool) => `<span class="chip">${tool}</span>`)
-            .join("")}
+    <html>
+      <head>
+        <style>
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            padding: 42px;
+            font-family: Inter, Arial, sans-serif;
+            color: #0f172a;
+            background: #f8fbff;
+          }
+          h1, h2, h3, h4, p { margin: 0; }
+          .hero {
+            padding: 28px;
+            border-radius: 28px;
+            background: linear-gradient(180deg, #0f172a, #1e293b);
+            color: white;
+          }
+          .muted { color: rgba(255,255,255,0.72); }
+          .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 18px;
+          }
+          .metric {
+            background: #ffffff;
+            border: 1px solid #dbe4ee;
+            border-radius: 20px;
+            padding: 16px;
+          }
+          .metric .label {
+            font-size: 11px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #64748b;
+          }
+          .metric .value {
+            margin-top: 8px;
+            font-size: 18px;
+            font-weight: 700;
+          }
+          .section {
+            margin-top: 22px;
+            padding: 22px;
+            border-radius: 24px;
+            background: white;
+            border: 1px solid #dbe4ee;
+          }
+          .cards {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+          }
+          .card {
+            border-radius: 18px;
+            padding: 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+          }
+          .rose { background: #fff1f2; border-color: #fecdd3; }
+          .green { background: #ecfdf5; border-color: #bbf7d0; }
+          .label {
+            font-size: 11px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #0891b2;
+            font-weight: 700;
+          }
+          .body {
+            margin-top: 10px;
+            font-size: 13px;
+            line-height: 1.65;
+            color: #475569;
+          }
+          .score-row { margin-top: 14px; }
+          .score-head {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            margin-bottom: 6px;
+          }
+          .bar {
+            width: 100%;
+            height: 8px;
+            border-radius: 999px;
+            background: #e2e8f0;
+          }
+          .fill {
+            height: 8px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #0ea5e9, #0f172a);
+          }
+          .chips { margin-top: 12px; }
+          .chip {
+            display: inline-block;
+            margin: 0 8px 8px 0;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            font-size: 12px;
+          }
+          .roadmap {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 14px;
+            margin-top: 16px;
+          }
+          .roadmap-item {
+            margin-top: 10px;
+            padding: 12px;
+            border-radius: 16px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            font-size: 13px;
+            line-height: 1.65;
+            color: #475569;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="hero">
+          <div class="label">AI readiness report</div>
+          <h1 style="margin-top:10px;font-size:34px;">${escapeHtml(profile.organizationName || "Organization report")}</h1>
+          <p class="muted" style="margin-top:10px;font-size:14px;line-height:1.7;">
+            ${escapeHtml(profile.organizationType || "Organization")} • ${escapeHtml(profile.sector || "Sector not provided")} • ${escapeHtml(profile.sizeBand || "Size not provided")}
+          </p>
         </div>
 
-        <h4>AI</h4>
-        <div>
-          ${(ai?.tools?.ai || [])
-            .map((tool) => `<span class="chip">${tool}</span>`)
-            .join("")}
+        <div class="grid-4">
+          <div class="metric"><div class="label">Overall score</div><div class="value">${escapeHtml(report.finalScore.toFixed(2))}</div></div>
+          <div class="metric"><div class="label">Stage</div><div class="value">${escapeHtml(report.maturityLevel)}</div></div>
+          <div class="metric"><div class="label">Benchmark</div><div class="value">${escapeHtml(assessment.benchmark || "n/a")}</div></div>
+          <div class="metric"><div class="label">Priority</div><div class="value">${escapeHtml(notes.priority || "n/a")}</div></div>
         </div>
 
-        <h4>Cloud</h4>
-        <div>
-          ${(ai?.tools?.cloud || [])
-            .map((tool) => `<span class="chip">${tool}</span>`)
-            .join("")}
+        <div class="section">
+          <div class="label">Executive summary</div>
+          <h2 style="margin-top:8px;font-size:24px;">${escapeHtml(ai.summary?.headline || "Executive summary")}</h2>
+          <div class="cards">
+            <div class="card"><div class="label">Current state</div><p class="body">${escapeHtml(ai.summary?.current_state)}</p></div>
+            <div class="card"><div class="label">Key risk</div><p class="body">${escapeHtml(ai.summary?.key_risk)}</p></div>
+            <div class="card"><div class="label">Recommended focus</div><p class="body">${escapeHtml(ai.summary?.recommended_focus)}</p></div>
+          </div>
         </div>
-      </div>
 
-    </body>
-  </html>
+        <div class="section">
+          <div class="label">Section scorecard</div>
+          <h2 style="margin-top:8px;font-size:24px;">Capability profile</h2>
+          ${sectionScores}
+        </div>
+
+        <div class="section">
+          <div class="label">Priorities</div>
+          <h2 style="margin-top:8px;font-size:24px;">Gaps and opportunities</h2>
+          <div class="cards">
+            ${(ai.gaps || [])
+              .map(
+                (item) => `
+                  <div class="card rose">
+                    <div style="font-weight:700;">${escapeHtml(item.area)}</div>
+                    <p class="body">${escapeHtml(item.description)}</p>
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
+          <div class="cards">
+            ${(ai.opportunities || [])
+              .map(
+                (item) => `
+                  <div class="card green">
+                    <div style="font-weight:700;">${escapeHtml(item.opportunity)}</div>
+                    <p class="body">${escapeHtml(item.description)}</p>
+                  </div>
+                `
+              )
+              .join("")}
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="label">Roadmap</div>
+          <h2 style="margin-top:8px;font-size:24px;">Transformation plan</h2>
+          <div class="roadmap">
+            <div class="card">
+              <div style="font-weight:700;">0-3 months</div>
+              ${(ai.roadmap?.short_term || []).map((item) => `<div class="roadmap-item">${escapeHtml(item)}</div>`).join("")}
+            </div>
+            <div class="card">
+              <div style="font-weight:700;">3-6 months</div>
+              ${(ai.roadmap?.mid_term || []).map((item) => `<div class="roadmap-item">${escapeHtml(item)}</div>`).join("")}
+            </div>
+            <div class="card">
+              <div style="font-weight:700;">6-12 months</div>
+              ${(ai.roadmap?.long_term || []).map((item) => `<div class="roadmap-item">${escapeHtml(item)}</div>`).join("")}
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="label">Tooling guidance</div>
+          <h2 style="margin-top:8px;font-size:24px;">Suggested stack categories</h2>
+          <h4 style="margin-top:16px;">Data</h4>
+          <div class="chips">${(ai.tools?.data || []).map((tool) => `<span class="chip">${escapeHtml(tool)}</span>`).join("")}</div>
+          <h4 style="margin-top:12px;">AI</h4>
+          <div class="chips">${(ai.tools?.ai || []).map((tool) => `<span class="chip">${escapeHtml(tool)}</span>`).join("")}</div>
+          <h4 style="margin-top:12px;">Cloud</h4>
+          <div class="chips">${(ai.tools?.cloud || []).map((tool) => `<span class="chip">${escapeHtml(tool)}</span>`).join("")}</div>
+        </div>
+      </body>
+    </html>
   `;
 
   const browser = await puppeteer.launch({
-    headless: "new",
+    headless: true,
   });
 
   const page = await browser.newPage();
   await page.setContent(html, { waitUntil: "networkidle0" });
-
   const pdf = await page.pdf({
     format: "A4",
     printBackground: true,
+    margin: {
+      top: "16px",
+      right: "16px",
+      bottom: "16px",
+      left: "16px",
+    },
   });
-
   await browser.close();
 
   return new Response(pdf, {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename=report-${id}.pdf`,
+      "Content-Disposition": `attachment; filename=ai-readiness-report-${id}.pdf`,
     },
   });
 }
