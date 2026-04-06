@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: ai-assessment
+    runtime: node
+    plan: starter
+    autoDeploy: true
+    buildCommand: npm install && npx prisma generate && npm run build
+    preDeployCommand: npx prisma migrate deploy
+    startCommand: npm run start
+    healthCheckPath: /
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-assessment-db
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false
+
+databases:
+  - name: ai-assessment-db
+    plan: starter

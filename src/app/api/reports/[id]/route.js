@@ -287,3 +287,26 @@ export async function GET(_request, { params }) {
     },
   });
 }
+
+export async function DELETE(_request, { params }) {
+  try {
+    const { id } = await params;
+
+    const report = await prisma.survey.findUnique({
+      where: { id },
+    });
+
+    if (!report) {
+      return Response.json({ error: "Report not found." }, { status: 404 });
+    }
+
+    await prisma.survey.delete({
+      where: { id },
+    });
+
+    return Response.json({ success: true });
+  } catch (error) {
+    console.error("DELETE REPORT ERROR:", error);
+    return Response.json({ error: "Unable to delete report." }, { status: 500 });
+  }
+}

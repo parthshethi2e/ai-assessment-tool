@@ -1,8 +1,8 @@
 "use client";
 
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Building2, CheckCircle2, CircleDashed, Save, Sparkles } from "lucide-react";
+import { ArrowRight, Building2, CheckCircle2, CircleDashed, Home } from "lucide-react";
 import {
   annualBudgetBands,
   organizationTypes,
@@ -55,6 +55,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
   const [profileErrors, setProfileErrors] = useState({});
   const [sectionError, setSectionError] = useState("");
   const [questionErrors, setQuestionErrors] = useState({});
+  const [hasAutoSubmitted, setHasAutoSubmitted] = useState(false);
 
   useEffect(() => {
     if (!restoreDraft) {
@@ -68,6 +69,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
       setProfileErrors({});
       setSectionError("");
       setQuestionErrors({});
+      setHasAutoSubmitted(false);
       setHydrated(true);
       return;
     }
@@ -106,6 +108,71 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
     subject: section.title,
     value: section.score,
   }));
+
+  useEffect(() => {
+    if (currentStep !== reviewStep || savedReportId || hasAutoSubmitted || saveState === "saving" || status === "loading") {
+      return;
+    }
+
+    const submitAssessment = async () => {
+      setHasAutoSubmitted(true);
+      setStatus("loading");
+      setSaveState("saving");
+
+      let finalAnalysis;
+
+      try {
+        const ai = await analyzeSurveyWithAI({
+          profile: draft.profile,
+          notes: draft.notes,
+          assessment,
+        });
+
+        finalAnalysis = normalizeAnalysis(ai, draft, assessment);
+      } catch (error) {
+        console.error(error);
+        finalAnalysis = normalizeAnalysis(null, draft, assessment);
+      }
+
+      setAnalysis(finalAnalysis);
+
+      try {
+        const payload = {
+          finalScore: assessment.finalScore,
+          maturity: assessment.stage,
+          categoryScores: Object.fromEntries(assessment.scoredSections.map((item) => [item.id, item.score])),
+          draft,
+          assessment,
+          ai: finalAnalysis,
+        };
+
+        const response = await fetch("/api/save-result", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const json = await response.json();
+
+        if (!response.ok) {
+          throw new Error(json.error || "Save failed");
+        }
+
+        setSavedReportId(json.id);
+        setSaveState("saved");
+        setStatus("ready");
+        window.localStorage.removeItem(STORAGE_KEY);
+      } catch (error) {
+        console.error(error);
+        setSaveState("error");
+        setStatus("error");
+      }
+    };
+
+    submitAssessment();
+  }, [assessment, currentStep, draft, hasAutoSubmitted, reviewStep, saveState, savedReportId, status]);
 
   const updateProfile = (field, value) => {
     setProfileErrors((current) => ({ ...current, [field]: "" }));
@@ -152,6 +219,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
     setProfileErrors({});
     setSectionError("");
     setQuestionErrors({});
+    setHasAutoSubmitted(false);
   };
 
   const validateProfile = () => {
@@ -248,68 +316,25 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
   };
 
   const handleBack = () => {
+    if (currentStep === reviewStep) {
+      setAnalysis(null);
+      setStatus("idle");
+      setSaveState("idle");
+      setSavedReportId("");
+      setHasAutoSubmitted(false);
+    }
+
     setCurrentStep((step) => Math.max(step - 1, 0));
   };
 
-  const generateAnalysis = async () => {
-    setStatus("loading");
-
-    try {
-      const ai = await analyzeSurveyWithAI({
-        profile: draft.profile,
-        notes: draft.notes,
-        assessment,
-      });
-
-      setAnalysis(normalizeAnalysis(ai, draft, assessment));
-      setStatus("ready");
-    } catch (error) {
-      console.error(error);
-      setAnalysis(normalizeAnalysis(null, draft, assessment));
-      setStatus("ready");
-    }
-  };
-
-  const saveReport = async () => {
-    if (!analysis) {
-      return;
-    }
-
-    setSaveState("saving");
-
-    try {
-      const payload = {
-        finalScore: assessment.finalScore,
-        maturity: assessment.stage,
-        categoryScores: Object.fromEntries(assessment.scoredSections.map((item) => [item.id, item.score])),
-        draft,
-        assessment,
-        ai: analysis,
-      };
-
-      const response = await fetch("/api/save-result", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const json = await response.json();
-
-      if (!response.ok) {
-        throw new Error(json.error || "Save failed");
-      }
-
-      setSavedReportId(json.id);
-      setSaveState("saved");
-    } catch (error) {
-      console.error(error);
-      setSaveState("error");
-    }
-  };
-
-  const saveDraftHint = saveState === "saved" ? "Report saved." : saveState === "error" ? "Save failed." : "Draft autosaves locally.";
+  const saveDraftHint =
+    saveState === "saved"
+      ? "Report generated and saved."
+      : saveState === "error"
+        ? "We could not save the report."
+        : currentStep === reviewStep
+          ? "AI report is being prepared automatically."
+          : "Draft autosaves locally.";
 
   if (!hydrated) {
     return <div className="mx-auto max-w-6xl px-6 py-20 text-sm text-muted-foreground">Loading assessment workspace...</div>;
@@ -317,6 +342,14 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
+      <div className="mb-6 flex justify-end">
+        <Button asChild variant="outline" className="rounded-full">
+          <Link href="/">
+            <Home className="size-4" />
+            Close
+          </Link>
+        </Button>
+      </div>
       <div className="grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="space-y-4">
           <Card className="border-0 bg-[linear-gradient(160deg,rgba(14,116,144,0.98),rgba(15,23,42,0.98))] text-white ring-0 shadow-2xl">
@@ -420,16 +453,6 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
               savedReportId={savedReportId}
               chartData={chartData}
               onBack={handleBack}
-              onGenerate={() => {
-                startTransition(() => {
-                  generateAnalysis();
-                });
-              }}
-              onSave={() => {
-                startTransition(() => {
-                  saveReport();
-                });
-              }}
               onReset={clearDraft}
             />
           )}
@@ -715,8 +738,6 @@ function ReviewStep({
   savedReportId,
   chartData,
   onBack,
-  onGenerate,
-  onSave,
   onReset,
 }) {
   return (
@@ -737,14 +758,15 @@ function ReviewStep({
             <Button variant="outline" size="lg" className="h-11 rounded-full px-6" onClick={onBack}>
               Back
             </Button>
-            <Button size="lg" className="h-11 rounded-full px-6" onClick={onGenerate} disabled={status === "loading"}>
-              <Sparkles className="size-4" />
-              {status === "loading" ? "Generating analysis..." : analysis ? "Refresh AI analysis" : "Generate AI analysis"}
-            </Button>
-            <Button size="lg" variant="secondary" className="h-11 rounded-full px-6" onClick={onSave} disabled={!analysis || saveState === "saving"}>
-              <Save className="size-4" />
-              {saveState === "saving" ? "Saving..." : "Save report"}
-            </Button>
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              {saveState === "saving"
+                ? "Generating AI report and saving..."
+                : saveState === "saved"
+                  ? "AI report saved automatically"
+                  : saveState === "error"
+                    ? "Automatic save failed"
+                    : "Preparing report..."}
+            </div>
           </div>
         </div>
 
@@ -757,7 +779,7 @@ function ReviewStep({
 
         {savedReportId ? (
           <div className="mt-6 rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
-            Report saved. View it in <Link href="/reports" className="font-semibold underline">saved reports</Link> or open{" "}
+            Report generated and saved. View it in <Link href="/reports" className="font-semibold underline">saved reports</Link> or open{" "}
             <Link href={`/reports/${savedReportId}`} className="font-semibold underline">this report</Link>.
           </div>
         ) : null}
@@ -903,10 +925,13 @@ function ReviewStep({
           </div>
         ) : (
           <div className="mt-8 rounded-[2rem] border border-dashed border-slate-300 bg-slate-50/70 px-6 py-8 text-center">
-            <div className="text-lg font-semibold text-slate-950">Generate the tailored report when you’re ready.</div>
+            <div className="text-lg font-semibold text-slate-950">
+              {saveState === "error" ? "We hit a problem saving the report." : "We’re generating the tailored report now."}
+            </div>
             <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-              We already have the readiness score and local recommendations. The AI layer adds a more polished executive summary, roadmap language,
-              risk framing, and tooling guidance.
+              {saveState === "error"
+                ? "Please go back to the previous step and try again. Once the save succeeds, the report will appear in saved reports automatically."
+                : "The AI layer is building the executive summary, roadmap language, risk framing, and tooling guidance, then storing everything in the database automatically."}
             </p>
           </div>
         )}
