@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowRight, Building2, CheckCircle2, CircleDashed, Save, Sparkles } from "lucide-react";
 import {
   annualBudgetBands,
-  assessmentSections,
   organizationTypes,
   priorityOptions,
   respondentRoles,
@@ -45,7 +44,7 @@ const defaultDraft = {
   },
 };
 
-export default function AssessmentWorkspace() {
+export default function AssessmentWorkspace({ sections, restoreDraft = false }) {
   const [draft, setDraft] = useState(defaultDraft);
   const [hydrated, setHydrated] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -53,8 +52,26 @@ export default function AssessmentWorkspace() {
   const [status, setStatus] = useState("idle");
   const [saveState, setSaveState] = useState("idle");
   const [savedReportId, setSavedReportId] = useState("");
+  const [profileErrors, setProfileErrors] = useState({});
+  const [sectionError, setSectionError] = useState("");
+  const [questionErrors, setQuestionErrors] = useState({});
 
   useEffect(() => {
+    if (!restoreDraft) {
+      window.localStorage.removeItem(STORAGE_KEY);
+      setDraft(defaultDraft);
+      setAnalysis(null);
+      setSavedReportId("");
+      setCurrentStep(0);
+      setStatus("idle");
+      setSaveState("idle");
+      setProfileErrors({});
+      setSectionError("");
+      setQuestionErrors({});
+      setHydrated(true);
+      return;
+    }
+
     const stored = window.localStorage.getItem(STORAGE_KEY);
 
     if (stored) {
@@ -72,17 +89,17 @@ export default function AssessmentWorkspace() {
     }
 
     setHydrated(true);
-  }, []);
+  }, [restoreDraft]);
 
   useEffect(() => {
     if (!hydrated) return;
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
   }, [draft, hydrated]);
 
-  const assessment = useMemo(() => calculateAssessment(draft), [draft]);
-  const totalSteps = assessmentSections.length + 2;
+  const assessment = useMemo(() => calculateAssessment(draft, sections), [draft, sections]);
+  const totalSteps = sections.length + 2;
   const reviewStep = totalSteps - 1;
-  const activeSection = currentStep > 0 && currentStep < reviewStep ? assessmentSections[currentStep - 1] : null;
+  const activeSection = currentStep > 0 && currentStep < reviewStep ? sections[currentStep - 1] : null;
   const progress = Math.round((currentStep / reviewStep) * 100);
 
   const chartData = assessment.scoredSections.map((section) => ({
@@ -91,6 +108,7 @@ export default function AssessmentWorkspace() {
   }));
 
   const updateProfile = (field, value) => {
+    setProfileErrors((current) => ({ ...current, [field]: "" }));
     setDraft((current) => ({
       ...current,
       profile: {
@@ -101,6 +119,7 @@ export default function AssessmentWorkspace() {
   };
 
   const updateNotes = (field, value) => {
+    setProfileErrors((current) => ({ ...current, [field]: "" }));
     setDraft((current) => ({
       ...current,
       notes: {
@@ -111,6 +130,8 @@ export default function AssessmentWorkspace() {
   };
 
   const updateResponse = (questionId, value) => {
+    setSectionError("");
+    setQuestionErrors((current) => ({ ...current, [questionId]: "" }));
     setDraft((current) => ({
       ...current,
       responses: {
@@ -128,22 +149,101 @@ export default function AssessmentWorkspace() {
     setCurrentStep(0);
     setStatus("idle");
     setSaveState("idle");
+    setProfileErrors({});
+    setSectionError("");
+    setQuestionErrors({});
   };
 
-  const canContinueFromProfile =
-    draft.profile.organizationName &&
-    draft.profile.organizationType &&
-    draft.profile.sector &&
-    draft.profile.sizeBand &&
-    draft.profile.respondentRole;
+  const validateProfile = () => {
+    const errors = {};
+
+    if (!draft.profile.organizationName.trim()) {
+      errors.organizationName = "Organization name is required.";
+    } else if (draft.profile.organizationName.trim().length < 3) {
+      errors.organizationName = "Organization name must be at least 3 characters.";
+    }
+
+    if (!draft.profile.organizationType) {
+      errors.organizationType = "Organization type is required.";
+    }
+
+    if (!draft.profile.sector) {
+      errors.sector = "Sector is required.";
+    }
+
+    if (!draft.profile.sizeBand) {
+      errors.sizeBand = "Organization size is required.";
+    }
+
+    if (!draft.profile.annualBudgetBand) {
+      errors.annualBudgetBand = "Annual budget or revenue band is required.";
+    }
+
+    if (!draft.profile.respondentRole) {
+      errors.respondentRole = "Primary respondent role is required.";
+    }
+
+    if (!draft.profile.geography.trim()) {
+      errors.geography = "Operating geography is required.";
+    }
+
+    if (!draft.profile.mission.trim()) {
+      errors.mission = "Mission or business context is required.";
+    }
+
+    if (!draft.notes.priority) {
+      errors.priority = "Primary transformation priority is required.";
+    }
+
+    if (!draft.notes.timeline) {
+      errors.timeline = "Planning horizon is required.";
+    }
+
+    if (!draft.notes.knownRisks.trim()) {
+      errors.knownRisks = "Known risks or sensitivities are required.";
+    }
+
+    if (!draft.notes.challenges.trim()) {
+      errors.challenges = "Current challenges are required.";
+    }
+
+    if (!draft.notes.successMeasures.trim()) {
+      errors.successMeasures = "Success measures are required.";
+    }
+
+    setProfileErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateSection = () => {
+    if (!activeSection) {
+      return true;
+    }
+
+    const unanswered = activeSection.questions.filter((question) => !draft.responses[question.id]);
+
+    if (unanswered.length) {
+      setQuestionErrors(
+        Object.fromEntries(unanswered.map((question) => [question.id, "Please select a score before continuing."]))
+      );
+      setSectionError(`Please answer all questions in ${activeSection.title} before continuing.`);
+      return false;
+    }
+
+    setQuestionErrors({});
+    setSectionError("");
+    return true;
+  };
+
+  const canContinueFromProfile = validateProfilePreview(draft);
 
   const canContinueFromSection = !activeSection
     ? true
     : activeSection.questions.every((question) => draft.responses[question.id]);
 
   const handleNext = () => {
-    if (currentStep === 0 && !canContinueFromProfile) return;
-    if (activeSection && !canContinueFromSection) return;
+    if (currentStep === 0 && !validateProfile()) return;
+    if (activeSection && !validateSection()) return;
     setCurrentStep((step) => Math.min(step + 1, reviewStep));
   };
 
@@ -242,7 +342,7 @@ export default function AssessmentWorkspace() {
               </div>
 
               <div className="space-y-3">
-                {["Profile", ...assessmentSections.map((section) => section.title), "Report"].map((label, index) => {
+                {["Profile", ...sections.map((section) => section.title), "Report"].map((label, index) => {
                   const complete = index < currentStep;
                   const active = index === currentStep;
 
@@ -294,6 +394,7 @@ export default function AssessmentWorkspace() {
               updateProfile={updateProfile}
               updateNotes={updateNotes}
               canContinue={canContinueFromProfile}
+              errors={profileErrors}
               onNext={handleNext}
             />
           ) : activeSection ? (
@@ -304,6 +405,8 @@ export default function AssessmentWorkspace() {
               onBack={handleBack}
               onNext={handleNext}
               canContinue={canContinueFromSection}
+              sectionError={sectionError}
+              questionErrors={questionErrors}
               currentStep={currentStep}
               totalSteps={reviewStep}
             />
@@ -336,7 +439,25 @@ export default function AssessmentWorkspace() {
   );
 }
 
-function ProfileStep({ draft, updateProfile, updateNotes, canContinue, onNext }) {
+function validateProfilePreview(draft) {
+  return Boolean(
+    draft.profile.organizationName.trim() &&
+      draft.profile.organizationType &&
+      draft.profile.sector &&
+      draft.profile.sizeBand &&
+      draft.profile.annualBudgetBand &&
+      draft.profile.geography.trim() &&
+      draft.profile.respondentRole &&
+      draft.profile.mission.trim() &&
+      draft.notes.priority &&
+      draft.notes.timeline &&
+      draft.notes.knownRisks.trim() &&
+      draft.notes.challenges.trim() &&
+      draft.notes.successMeasures.trim()
+  );
+}
+
+function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, onNext }) {
   return (
     <div className="space-y-6">
       <section className="rounded-[2rem] border border-slate-200/70 bg-white/85 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur">
@@ -358,120 +479,146 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, onNext })
         <div className="grid gap-5 md:grid-cols-2">
           <Field label="Organization name">
             <Input
+              aria-invalid={Boolean(errors.organizationName)}
               value={draft.profile.organizationName}
               onChange={(event) => updateProfile("organizationName", event.target.value)}
               placeholder="Example: Horizon Health Network"
             />
+            <FieldError message={errors.organizationName} />
           </Field>
 
           <Field label="Organization type">
             <Select
+              aria-invalid={Boolean(errors.organizationType)}
               value={draft.profile.organizationType}
               onChange={(event) => updateProfile("organizationType", event.target.value)}
               options={organizationTypes.map((item) => ({ value: item.id, label: item.label }))}
             />
+            <FieldError message={errors.organizationType} />
           </Field>
 
           <Field label="Sector">
             <Select
+              aria-invalid={Boolean(errors.sector)}
               value={draft.profile.sector}
               onChange={(event) => updateProfile("sector", event.target.value)}
               options={sectorOptions.map((item) => ({ value: item, label: item }))}
               placeholder="Select sector"
             />
+            <FieldError message={errors.sector} />
           </Field>
 
           <Field label="Organization size">
             <Select
+              aria-invalid={Boolean(errors.sizeBand)}
               value={draft.profile.sizeBand}
               onChange={(event) => updateProfile("sizeBand", event.target.value)}
               options={sizeBands.map((item) => ({ value: item, label: item }))}
               placeholder="Select size band"
             />
+            <FieldError message={errors.sizeBand} />
           </Field>
 
           <Field label="Annual budget / revenue band">
             <Select
+              aria-invalid={Boolean(errors.annualBudgetBand)}
               value={draft.profile.annualBudgetBand}
               onChange={(event) => updateProfile("annualBudgetBand", event.target.value)}
               options={annualBudgetBands.map((item) => ({ value: item, label: item }))}
               placeholder="Select budget band"
             />
+            <FieldError message={errors.annualBudgetBand} />
           </Field>
 
           <Field label="Primary respondent role">
             <Select
+              aria-invalid={Boolean(errors.respondentRole)}
               value={draft.profile.respondentRole}
               onChange={(event) => updateProfile("respondentRole", event.target.value)}
               options={respondentRoles.map((item) => ({ value: item, label: item }))}
               placeholder="Select role"
             />
+            <FieldError message={errors.respondentRole} />
           </Field>
 
           <Field label="Operating geography">
             <Input
+              aria-invalid={Boolean(errors.geography)}
               value={draft.profile.geography}
               onChange={(event) => updateProfile("geography", event.target.value)}
               placeholder="Example: India, Southeast Asia, or Global"
             />
+            <FieldError message={errors.geography} />
           </Field>
 
           <Field label="Primary transformation priority">
             <Select
+              aria-invalid={Boolean(errors.priority)}
               value={draft.notes.priority}
               onChange={(event) => updateNotes("priority", event.target.value)}
               options={priorityOptions.map((item) => ({ value: item, label: item }))}
               placeholder="Choose the main priority"
             />
+            <FieldError message={errors.priority} />
           </Field>
         </div>
 
         <div className="mt-5 grid gap-5">
           <Field label="Mission or business context">
             <Textarea
+              aria-invalid={Boolean(errors.mission)}
               value={draft.profile.mission}
               onChange={(event) => updateProfile("mission", event.target.value)}
               placeholder="Describe the mission, value proposition, or strategic context that AI should support."
             />
+            <FieldError message={errors.mission} />
           </Field>
 
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="Planning horizon">
               <Select
+                aria-invalid={Boolean(errors.timeline)}
                 value={draft.notes.timeline}
                 onChange={(event) => updateNotes("timeline", event.target.value)}
                 options={timelineOptions.map((item) => ({ value: item, label: item }))}
               />
+              <FieldError message={errors.timeline} />
             </Field>
 
-            <Field label="Known risks or sensitivities">
-              <Input
-                value={draft.notes.knownRisks}
-                onChange={(event) => updateNotes("knownRisks", event.target.value)}
-                placeholder="Privacy, donor trust, regulatory exposure, workforce concerns..."
-              />
-            </Field>
+          <Field label="Known risks or sensitivities">
+            <Input
+              aria-invalid={Boolean(errors.knownRisks)}
+              value={draft.notes.knownRisks}
+              onChange={(event) => updateNotes("knownRisks", event.target.value)}
+              placeholder="Privacy, donor trust, regulatory exposure, workforce concerns..."
+            />
+            <FieldError message={errors.knownRisks} />
+          </Field>
           </div>
 
           <Field label="Biggest current challenges">
             <Textarea
+              aria-invalid={Boolean(errors.challenges)}
               value={draft.notes.challenges}
               onChange={(event) => updateNotes("challenges", event.target.value)}
               placeholder="List the operational, customer, stakeholder, or program delivery problems you most want to improve."
             />
+            <FieldError message={errors.challenges} />
           </Field>
 
           <Field label="How would success be measured?">
             <Textarea
+              aria-invalid={Boolean(errors.successMeasures)}
               value={draft.notes.successMeasures}
               onChange={(event) => updateNotes("successMeasures", event.target.value)}
               placeholder="Examples: hours saved, response time, beneficiary reach, donor reporting quality, margin, or retention."
             />
+            <FieldError message={errors.successMeasures} />
           </Field>
         </div>
 
         <div className="mt-8 flex items-center justify-between gap-4">
-          <p className="text-sm text-slate-500">Required fields: organization name, type, sector, size, and respondent role.</p>
+          <p className="text-sm text-slate-500">All profile fields are required before the assessment can begin.</p>
           <Button disabled={!canContinue} size="lg" className="h-11 rounded-full px-6" onClick={onNext}>
             Start assessment
             <ArrowRight className="size-4" />
@@ -482,7 +629,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, onNext })
   );
 }
 
-function SectionStep({ section, draft, updateResponse, onBack, onNext, canContinue, currentStep, totalSteps }) {
+function SectionStep({ section, draft, updateResponse, onBack, onNext, canContinue, sectionError, questionErrors, currentStep, totalSteps }) {
   return (
     <div className="space-y-6">
       <section className="rounded-[2rem] border border-slate-200/70 bg-white/85 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur">
@@ -501,11 +648,15 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
 
         <div className="space-y-5">
           {section.questions.map((question) => (
-            <Card key={question.id} className="border border-slate-200/80 bg-white shadow-sm">
+            <Card
+              key={question.id}
+              className={`border bg-white shadow-sm ${questionErrors[question.id] ? "border-rose-300 ring-1 ring-rose-200" : "border-slate-200/80"}`}
+            >
               <CardHeader>
                 <CardTitle className="text-lg text-slate-950">{question.prompt}</CardTitle>
                 <CardDescription className="leading-6 text-slate-600">
-                  Why this matters: {question.why}
+                  {question.helperText ? `${question.helperText} ` : ""}
+                  {question.why ? `Why this matters: ${question.why}` : ""}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -531,10 +682,15 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
                     );
                   })}
                 </div>
+                <FieldError message={questionErrors[question.id]} />
               </CardContent>
             </Card>
           ))}
         </div>
+
+        {sectionError ? (
+          <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{sectionError}</div>
+        ) : null}
 
         <div className="mt-8 flex items-center justify-between">
           <Button variant="outline" size="lg" className="h-11 rounded-full px-6" onClick={onBack}>
@@ -793,6 +949,11 @@ function Select({ options, placeholder = "Select an option", ...props }) {
       ))}
     </select>
   );
+}
+
+function FieldError({ message }) {
+  if (!message) return null;
+  return <p className="text-sm text-rose-600">{message}</p>;
 }
 
 function Metric({ label, value }) {

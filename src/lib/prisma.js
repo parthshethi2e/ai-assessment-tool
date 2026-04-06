@@ -1,10 +1,29 @@
 import { PrismaClient } from "@prisma/client";
 
-const globalForPrisma = global;
+const globalForPrisma = globalThis;
 
-export const prisma =
-  globalForPrisma.prisma || new PrismaClient();
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma;
+function createPrismaClient() {
+  return new PrismaClient();
 }
+
+function hasAssessmentModels(client) {
+  return Boolean(client?.assessmentSection && client?.assessmentQuestion);
+}
+
+export function getPrismaClient() {
+  const cachedPrisma = globalForPrisma.prisma;
+
+  if (hasAssessmentModels(cachedPrisma)) {
+    return cachedPrisma;
+  }
+
+  const prismaClient = createPrismaClient();
+
+  if (process.env.NODE_ENV !== "production") {
+    globalForPrisma.prisma = prismaClient;
+  }
+
+  return prismaClient;
+}
+
+export const prisma = getPrismaClient();

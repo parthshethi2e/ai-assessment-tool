@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
+export const dynamic = "force-dynamic";
+
 function getAnswers(report) {
   return typeof report.answers === "string" ? JSON.parse(report.answers) : report.answers;
 }
@@ -26,6 +28,9 @@ export default async function ReportsPage() {
 
           <Button asChild size="lg" className="h-11 rounded-full px-6">
             <Link href="/survey">New assessment</Link>
+          </Button>
+          <Button asChild variant="outline" size="lg" className="h-11 rounded-full px-6">
+            <Link href="/admin">Admin</Link>
           </Button>
         </div>
 

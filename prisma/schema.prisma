@@ -14,6 +14,60 @@ model Organization {
   createdAt DateTime @default(now())
 }
 
+model AssessmentSection {
+  id          String               @id @default(uuid())
+  key         String               @unique
+  title       String
+  description String
+  weight      Float                @default(1)
+  sortOrder   Int
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  questions   AssessmentQuestion[]
+}
+
+model AssessmentQuestion {
+  id          String            @id @default(uuid())
+  key         String            @unique
+  sectionId   String
+  section     AssessmentSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  prompt      String
+  helperText  String?
+  whyItMatters String?
+  weight      Float             @default(1)
+  sortOrder   Int
+  isActive    Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([sectionId, sortOrder])
+}
+
+model AdminUser {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String
+  isActive      Boolean        @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sessions      AdminSession[]
+}
+
+model AdminSession {
+  id             String    @id @default(uuid())
+  tokenHash      String    @unique
+  adminUserId    String
+  adminUser      AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  expiresAt      DateTime
+  lastActivityAt DateTime
+  createdAt      DateTime  @default(now())
+
+  @@index([adminUserId])
+  @@index([expiresAt])
+}
+
 model Survey {
   id              String        @id @default(uuid())
   organizationId  String?

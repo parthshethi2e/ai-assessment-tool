@@ -1,5 +1,3 @@
-import { assessmentSections } from "@/data/assessmentFramework";
-
 const stageThresholds = [
   { min: 0, label: "Foundational" },
   { min: 2.2, label: "Developing" },
@@ -121,9 +119,8 @@ export function getRecommendedUseCases(profile) {
   return library[sector] || library.default;
 }
 
-export function calculateAssessment(draft) {
+export function calculateAssessment(draft, sections = []) {
   const responses = draft.responses || {};
-  const sections = assessmentSections;
   const scoredSections = sections.map((section) => {
     let weightedPoints = 0;
     let totalWeight = 0;
@@ -275,4 +272,3 @@ export function normalizeAnalysis(analysis, draft, assessment) {
     },
   };
 }
-

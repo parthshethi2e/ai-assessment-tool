@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Building2, ChartNoAxesColumn, FileText, ShieldCheck, Sparkles, Users } from "lucide-react";
-import { assessmentSections, organizationTypes, sectorOptions } from "@/data/assessmentFramework";
+import { defaultAssessmentSections, organizationTypes, sectorOptions } from "@/data/assessmentFramework";
 import { Button } from "@/components/ui/button";
 
 const featureCards = [
@@ -42,6 +42,9 @@ export default function HomePage() {
           </div>
 
           <nav className="flex items-center gap-3">
+            <Button asChild variant="ghost" className="rounded-full">
+              <Link href="/admin">Admin</Link>
+            </Button>
             <Button asChild variant="ghost" className="rounded-full">
               <Link href="/reports">Reports</Link>
             </Button>
@@ -146,8 +149,8 @@ export default function HomePage() {
               <div className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Assessment framework</div>
               <h2 className="font-heading mt-2 text-3xl font-semibold tracking-tight text-slate-950">Expanded dimensions that work across organization types</h2>
               <div className="mt-8 grid gap-4 md:grid-cols-2">
-                {assessmentSections.map((section) => (
-                  <div key={section.id} className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-5">
+                {defaultAssessmentSections.map((section) => (
+                  <div key={section.key} className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-5">
                     <div className="text-base font-semibold text-slate-950">{section.title}</div>
                     <p className="mt-2 text-sm leading-6 text-slate-600">{section.description}</p>
                   </div>
