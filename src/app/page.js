@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { ArrowRight, Building2, ChartNoAxesColumn, FileText, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { ArrowRight, Building2, ChartNoAxesColumn, FileText, ShieldCheck, Users } from "lucide-react";
 import { defaultAssessmentSections, organizationTypes, sectorOptions } from "@/data/assessmentFramework";
+import SiteFooter from "@/components/SiteFooter";
+import SiteHeader from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 
 const featureCards = [
@@ -29,49 +31,23 @@ const featureCards = [
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(8,145,178,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(15,23,42,0.12),transparent_32%),linear-gradient(180deg,#f8fcff_0%,#f5f7fb_46%,#eef3f7_100%)]">
+      <SiteHeader current="/" />
       <div className="mx-auto max-w-7xl px-6 py-6 lg:px-8">
-        <header className="flex flex-wrap items-center justify-between gap-4 rounded-full border border-white/70 bg-white/80 px-5 py-3 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-full bg-slate-950 text-white">
-              <Sparkles className="size-4" />
-            </div>
-            <div>
-              <div className="text-sm font-semibold text-slate-950">AI Assess Pro</div>
-              <div className="text-xs text-slate-500">Professional readiness for modern organizations</div>
-            </div>
-          </div>
-
-          <nav className="flex items-center gap-3">
-            <Button asChild variant="ghost" className="rounded-full">
-              <Link href="/admin">Admin</Link>
-            </Button>
-            <Button asChild variant="ghost" className="rounded-full">
-              <Link href="/reports">Reports</Link>
-            </Button>
-            <Button asChild className="rounded-full px-5">
-              <Link href="/survey">
-                Start assessment
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-          </nav>
-        </header>
-
         <main className="py-10 lg:py-16">
           <section className="grid gap-10 lg:grid-cols-[minmax(0,1.15fr)_420px] lg:items-center">
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-900">
                 <ChartNoAxesColumn className="size-4" />
-                A richer assessment model for professional use
+                I2E Consulting assessment platform
               </div>
 
               <div className="space-y-5">
                 <h1 className="font-heading max-w-4xl text-5xl font-semibold tracking-tight text-slate-950 lg:text-6xl">
-                  Assess AI readiness across strategy, operations, governance, and measurable impact.
+                  I2E Consulting helps organizations assess AI readiness with clarity and credibility.
                 </h1>
                 <p className="max-w-3xl text-lg leading-8 text-slate-600">
-                  A rebuilt advisory-style Next.js application that helps commercial and mission-driven organizations understand where they are,
-                  what to improve first, and how to build a practical AI roadmap.
+                  A branded advisory platform for commercial and mission-driven organizations to understand readiness, surface priorities,
+                  and move toward a practical AI roadmap.
                 </p>
               </div>
 
@@ -83,7 +59,7 @@ export default function HomePage() {
                   </Link>
                 </Button>
                 <Button asChild size="lg" variant="outline" className="h-12 rounded-full px-6 text-sm">
-                  <Link href="/reports">Browse saved reports</Link>
+                  <Link href="/admin">Open admin</Link>
                 </Button>
               </div>
 
@@ -96,8 +72,8 @@ export default function HomePage() {
 
             <div className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur">
               <div className="rounded-[1.75rem] bg-[linear-gradient(160deg,#0f172a,#164e63)] p-6 text-white">
-                <div className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">What the new product does</div>
-                <div className="font-heading mt-4 text-2xl font-semibold">Professional AI assessment, not a demo survey.</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">What I2E Consulting delivers</div>
+                <div className="font-heading mt-4 text-2xl font-semibold">An assessment-led consulting experience, not a generic survey.</div>
                 <div className="mt-4 space-y-3 text-sm leading-6 text-white/75">
                   <p>Captures organization context before scoring readiness.</p>
                   <p>Provides sector-aware starter use cases and priorities.</p>
@@ -184,6 +160,7 @@ export default function HomePage() {
           </section>
         </main>
       </div>
+      <SiteFooter />
     </div>
   );
 }

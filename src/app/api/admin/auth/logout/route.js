@@ -1,8 +1,25 @@
-import { clearAdminSessionCookie, deleteAdminSessionByToken } from "@/lib/adminAuth";
+import { logAuditEvent } from "@/lib/auditLog";
+import { clearAdminSessionCookie, deleteAdminSessionByToken, getAdminSessionFromToken } from "@/lib/adminAuth";
 
 export async function POST(request) {
   try {
     const token = request.cookies.get("admin_session")?.value;
+    const session = await getAdminSessionFromToken(token);
+
+    if (session) {
+      await logAuditEvent({
+        actorEmail: session.adminUser?.email || null,
+        actorType: "admin",
+        action: "auth.logout",
+        entityType: "admin_user",
+        entityId: session.adminUser?.id || session.id,
+        details: {
+          reason: "manual_logout",
+          email: session.adminUser?.email || null,
+        },
+      });
+    }
+
     await deleteAdminSessionByToken(token);
     await clearAdminSessionCookie();
 

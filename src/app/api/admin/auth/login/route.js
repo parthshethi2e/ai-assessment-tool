@@ -1,3 +1,4 @@
+import { logAuditEvent } from "@/lib/auditLog";
 import { authenticateAdmin, setAdminSessionCookie } from "@/lib/adminAuth";
 
 export async function POST(request) {
@@ -26,6 +27,19 @@ export async function POST(request) {
     }
 
     await setAdminSessionCookie(auth.rawToken, auth.expiresAt);
+
+    await logAuditEvent({
+      actorEmail: auth.user.email,
+      actorType: "admin",
+      action: "auth.login",
+      entityType: "admin_user",
+      entityId: auth.user.id,
+      details: {
+        email: auth.user.email,
+        timeoutMinutes: 60,
+        expiresAt: auth.expiresAt,
+      },
+    });
 
     return Response.json({
       success: true,

@@ -1,4 +1,5 @@
 import { getPrismaClient } from "@/lib/prisma";
+import { logAuditEvent } from "@/lib/auditLog";
 import { requireAdminApiSession } from "@/lib/adminAuth";
 import { ensureDefaultAssessmentFramework, hasFrameworkDelegates } from "@/lib/assessmentRepository";
 
@@ -8,6 +9,20 @@ function slugify(value) {
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function snapshotSection(section) {
+  if (!section) return null;
+
+  return {
+    id: section.id,
+    key: section.key,
+    title: section.title,
+    description: section.description,
+    weight: Number(section.weight),
+    sortOrder: Number(section.sortOrder),
+    isActive: Boolean(section.isActive),
+  };
 }
 
 export async function GET(request) {
@@ -100,6 +115,17 @@ export async function POST(request) {
       );
       section = insertedRows[0];
     }
+
+    await logAuditEvent({
+      actorEmail: auth.session.adminUser.email,
+      actorType: "admin",
+      action: "framework.section_created",
+      entityType: "assessment_section",
+      entityId: section.id,
+      details: {
+        section: snapshotSection(section),
+      },
+    });
 
     return Response.json({ section });
   } catch (error) {

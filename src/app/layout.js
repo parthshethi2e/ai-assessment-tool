@@ -13,10 +13,10 @@ const headingFont = Sora({
 
 export const metadata = {
   title: {
-    default: "AI Assess Pro",
-    template: "%s | AI Assess Pro",
+    default: "I2E Consulting",
+    template: "%s | I2E Consulting",
   },
-  description: "Professional AI readiness assessment for for-profit and non-profit organizations.",
+  description: "I2E Consulting AI readiness assessment platform for for-profit and non-profit organizations.",
 };
 
 export default function RootLayout({ children }) {

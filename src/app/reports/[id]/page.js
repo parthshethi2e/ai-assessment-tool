@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getAuditEventsForEntity } from "@/lib/auditLog";
+import { requireAdminPageSession } from "@/lib/adminAuth";
 import { prisma } from "@/lib/prisma";
 import CustomRadar from "@/components/RadarChart";
+import ReportDeliveryPanel from "@/components/reports/ReportDeliveryPanel";
+import SiteHeader from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -13,10 +17,14 @@ function parseJson(value) {
 
 export default async function ReportDetailPage({ params }) {
   const { id } = await params;
+  const session = await requireAdminPageSession();
 
-  const report = await prisma.survey.findUnique({
-    where: { id },
-  });
+  const [report, auditEvents] = await Promise.all([
+    prisma.survey.findUnique({
+      where: { id },
+    }),
+    getAuditEventsForEntity("survey", id),
+  ]);
 
   if (!report) {
     notFound();
@@ -27,13 +35,27 @@ export default async function ReportDetailPage({ params }) {
   const assessment = answers.assessment || {};
   const profile = answers.profile || {};
   const notes = answers.notes || {};
+  const reportMeta = answers.meta || {};
   const chartData = (assessment.scoredSections || []).map((section) => ({
     subject: section.title,
     value: section.score,
   }));
+  const responseComments = (assessment.scoredSections || []).flatMap((section) =>
+    (section.questions || [])
+      .filter((question) => question.comment?.trim())
+      .map((question) => ({
+        id: question.id,
+        section: section.title,
+        prompt: question.prompt,
+        comment: question.comment.trim(),
+        mode: question.mode,
+        score: question.score,
+      }))
+  );
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#edf3f7_100%)]">
+      <SiteHeader current="/admin" />
       <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -72,7 +94,9 @@ export default async function ReportDetailPage({ params }) {
               <CardHeader>
                 <CardTitle className="text-2xl text-white">{ai.summary?.headline || "Executive summary"}</CardTitle>
                 <CardDescription className="text-white/70">
-                  Tailored to {profile.organizationType || "the organization"} context and the captured score profile.
+                  {reportMeta.reportGenerationEnabled === false
+                    ? "AI report generation was disabled for this assessment, so this saved report shows the weighted scorecard and structured responses."
+                    : `Tailored to ${profile.organizationType || "the organization"} context and the captured score profile.`}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-3">
@@ -102,6 +126,25 @@ export default async function ReportDetailPage({ params }) {
               </CardContent>
             </Card>
 
+            {responseComments.length ? (
+              <Card className="border border-slate-200/80 bg-white shadow-sm">
+                <CardHeader>
+                  <CardTitle>Question comments</CardTitle>
+                  <CardDescription>Context captured during the assessment for individual questions.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  {responseComments.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                      <div className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700">{item.section}</div>
+                      <div className="mt-2 text-sm font-semibold text-slate-950">{item.prompt}</div>
+                      <div className="mt-2 text-xs text-slate-500">{formatResponseLabel(item)}</div>
+                      <p className="mt-3 text-sm leading-6 text-slate-600">{item.comment}</p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ) : null}
+
             <div className="grid gap-6 lg:grid-cols-2">
               <ListCard title="Primary gaps" items={ai.gaps || []} color="rose" titleKey="area" bodyKey="description" />
               <ListCard title="Opportunities" items={ai.opportunities || []} color="emerald" titleKey="opportunity" bodyKey="description" />
@@ -120,6 +163,15 @@ export default async function ReportDetailPage({ params }) {
           </div>
 
           <div className="space-y-6">
+            <ReportDeliveryPanel
+              reportId={report.id}
+              initialStatus={report.deliveryStatus}
+              initialNotes={report.deliveryNotes || ""}
+              deliveredAt={report.deliveredAt}
+              deliveredByEmail={report.deliveredByEmail}
+              canManage={Boolean(session)}
+            />
+
             <Card className="border border-slate-200/80 bg-white shadow-sm">
               <CardHeader>
                 <CardTitle>Capability map</CardTitle>
@@ -165,6 +217,33 @@ export default async function ReportDetailPage({ params }) {
                 <ToolList title="Data" items={ai.tools?.data || []} />
                 <ToolList title="AI" items={ai.tools?.ai || []} />
                 <ToolList title="Cloud" items={ai.tools?.cloud || []} />
+              </CardContent>
+            </Card>
+
+            <Card className="border border-slate-200/80 bg-white shadow-sm">
+              <CardHeader>
+                <CardTitle>Audit log</CardTitle>
+                <CardDescription>Persistent record of report lifecycle and consultant actions for this assessment.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {auditEvents.length ? (
+                  auditEvents.map((event) => (
+                    <div key={event.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-sm font-semibold text-slate-950">{formatAuditAction(event.action)}</div>
+                        <div className="text-xs text-slate-500">{new Date(event.createdAt).toLocaleString()}</div>
+                      </div>
+                      <div className="mt-2 text-sm text-slate-600">
+                        {event.actorEmail ? `By ${event.actorEmail}` : "System event"}
+                      </div>
+                      {event.details ? <p className="mt-2 text-sm leading-6 text-slate-600">{formatAuditDetails(event.details)}</p> : null}
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                    No audit entries recorded yet for this assessment.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -252,4 +331,39 @@ function ContextRow({ label, children }) {
       <span className="text-right">{children}</span>
     </div>
   );
+}
+
+function formatResponseLabel(item) {
+  if (item.mode === "score") {
+    return `Selected score: ${item.score}/5`;
+  }
+
+  if (item.mode === "skip") {
+    return "Marked as skip for now";
+  }
+
+  if (item.mode === "na") {
+    return "Marked as preferred not to answer";
+  }
+
+  return "Response recorded";
+}
+
+function formatAuditAction(action) {
+  return action
+    .split(".")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatAuditDetails(details) {
+  if (!details || typeof details !== "object") {
+    return "";
+  }
+
+  const values = Object.entries(details)
+    .filter(([, value]) => value !== null && value !== "")
+    .map(([key, value]) => `${key.replaceAll(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase())}: ${value}`);
+
+  return values.join(" • ");
 }

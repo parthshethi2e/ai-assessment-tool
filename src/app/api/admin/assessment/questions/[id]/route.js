@@ -1,6 +1,23 @@
 import { getPrismaClient } from "@/lib/prisma";
+import { logAuditEvent } from "@/lib/auditLog";
 import { requireAdminApiSession } from "@/lib/adminAuth";
 import { hasFrameworkDelegates } from "@/lib/assessmentRepository";
+
+function snapshotQuestion(question) {
+  if (!question) return null;
+
+  return {
+    id: question.id,
+    key: question.key,
+    sectionId: question.sectionId,
+    prompt: question.prompt,
+    helperText: question.helperText,
+    whyItMatters: question.whyItMatters,
+    weight: Number(question.weight),
+    sortOrder: Number(question.sortOrder),
+    isActive: Boolean(question.isActive),
+  };
+}
 
 export async function PATCH(request, { params }) {
   try {
@@ -32,9 +49,10 @@ export async function PATCH(request, { params }) {
     }
 
     let question;
+    let existing;
 
     if (hasFrameworkDelegates(prisma)) {
-      const existing = await prisma.assessmentQuestion.findFirst({
+      existing = await prisma.assessmentQuestion.findFirst({
         where: {
           OR: [{ id }, { key: id }],
         },
@@ -60,7 +78,7 @@ export async function PATCH(request, { params }) {
         `SELECT * FROM "AssessmentQuestion" WHERE "id" = $1 OR "key" = $1 LIMIT 1`,
         id
       );
-      const existing = existingRows[0];
+      existing = existingRows[0];
 
       if (!existing) {
         return Response.json({ error: "Question not found." }, { status: 404 });
@@ -90,6 +108,18 @@ export async function PATCH(request, { params }) {
       question = updatedRows[0];
     }
 
+    await logAuditEvent({
+      actorEmail: auth.session.adminUser.email,
+      actorType: "admin",
+      action: "framework.question_updated",
+      entityType: "assessment_question",
+      entityId: question.id,
+      details: {
+        before: snapshotQuestion(existing),
+        after: snapshotQuestion(question),
+      },
+    });
+
     return Response.json({ question });
   } catch (error) {
     console.error("UPDATE QUESTION ERROR:", error);
@@ -103,8 +133,9 @@ export async function DELETE(_request, { params }) {
     if (!auth.ok) return auth.response;
     const prisma = getPrismaClient();
     const { id } = await params;
+    let existing;
     if (hasFrameworkDelegates(prisma)) {
-      const existing = await prisma.assessmentQuestion.findFirst({
+      existing = await prisma.assessmentQuestion.findFirst({
         where: {
           OR: [{ id }, { key: id }],
         },
@@ -117,18 +148,41 @@ export async function DELETE(_request, { params }) {
       await prisma.assessmentQuestion.delete({
         where: { id: existing.id },
       });
+
+      await logAuditEvent({
+        actorEmail: auth.session.adminUser.email,
+        actorType: "admin",
+        action: "framework.question_deleted",
+        entityType: "assessment_question",
+        entityId: existing.id,
+        details: {
+          key: existing.key,
+          prompt: existing.prompt,
+        },
+      });
     } else {
       const existingRows = await prisma.$queryRawUnsafe(
         `SELECT * FROM "AssessmentQuestion" WHERE "id" = $1 OR "key" = $1 LIMIT 1`,
         id
       );
-      const existing = existingRows[0];
+      existing = existingRows[0];
 
       if (!existing) {
         return Response.json({ error: "Question not found." }, { status: 404 });
       }
 
       await prisma.$executeRawUnsafe(`DELETE FROM "AssessmentQuestion" WHERE "id" = $1`, existing.id);
+
+      await logAuditEvent({
+        actorEmail: auth.session.adminUser.email,
+        actorType: "admin",
+        action: "framework.question_deleted",
+        entityType: "assessment_question",
+        entityId: existing.id,
+        details: {
+          question: snapshotQuestion(existing),
+        },
+      });
     }
 
     return Response.json({ success: true });

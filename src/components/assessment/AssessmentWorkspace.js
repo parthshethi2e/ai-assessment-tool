@@ -13,8 +13,9 @@ import {
   sizeBands,
   timelineOptions,
 } from "@/data/assessmentFramework";
-import { calculateAssessment, normalizeAnalysis } from "@/lib/assessment";
+import { calculateAssessment, getResponseRecord, isResolvedResponse, normalizeAnalysis } from "@/lib/assessment";
 import { analyzeSurveyWithAI } from "@/services/analysisService";
+import BrandBadge from "@/components/BrandBadge";
 import CustomRadar from "@/components/RadarChart";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +23,18 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 const STORAGE_KEY = "ai-assessment-professional-draft";
+const nonScoreOptions = [
+  {
+    value: "skip",
+    label: "Skip for now",
+    description: "Come back to this later without affecting the score.",
+  },
+  {
+    value: "na",
+    label: "Preferred not to answer",
+    description: "Mark this as not answered and exclude it from scoring.",
+  },
+];
 
 const defaultDraft = {
   profile: {
@@ -44,7 +57,7 @@ const defaultDraft = {
   },
 };
 
-export default function AssessmentWorkspace({ sections, restoreDraft = false }) {
+export default function AssessmentWorkspace({ sections, restoreDraft = false, reportGenerationEnabled = true }) {
   const [draft, setDraft] = useState(defaultDraft);
   const [hydrated, setHydrated] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -84,6 +97,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
           ...parsed,
           profile: { ...defaultDraft.profile, ...parsed.profile },
           notes: { ...defaultDraft.notes, ...parsed.notes },
+          responses: normalizeDraftResponses(parsed.responses),
         });
       } catch (error) {
         console.error("Failed to restore draft", error);
@@ -119,19 +133,21 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
       setStatus("loading");
       setSaveState("saving");
 
-      let finalAnalysis;
+      let finalAnalysis = null;
 
-      try {
-        const ai = await analyzeSurveyWithAI({
-          profile: draft.profile,
-          notes: draft.notes,
-          assessment,
-        });
+      if (reportGenerationEnabled) {
+        try {
+          const ai = await analyzeSurveyWithAI({
+            profile: draft.profile,
+            notes: draft.notes,
+            assessment,
+          });
 
-        finalAnalysis = normalizeAnalysis(ai, draft, assessment);
-      } catch (error) {
-        console.error(error);
-        finalAnalysis = normalizeAnalysis(null, draft, assessment);
+          finalAnalysis = normalizeAnalysis(ai, draft, assessment);
+        } catch (error) {
+          console.error(error);
+          finalAnalysis = normalizeAnalysis(null, draft, assessment);
+        }
       }
 
       setAnalysis(finalAnalysis);
@@ -144,6 +160,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
           draft,
           assessment,
           ai: finalAnalysis,
+          reportGenerationEnabled,
         };
 
         const response = await fetch("/api/save-result", {
@@ -172,7 +189,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
     };
 
     submitAssessment();
-  }, [assessment, currentStep, draft, hasAutoSubmitted, reviewStep, saveState, savedReportId, status]);
+  }, [assessment, currentStep, draft, hasAutoSubmitted, reportGenerationEnabled, reviewStep, saveState, savedReportId, status]);
 
   const updateProfile = (field, value) => {
     setProfileErrors((current) => ({ ...current, [field]: "" }));
@@ -196,14 +213,17 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
     }));
   };
 
-  const updateResponse = (questionId, value) => {
+  const updateResponse = (questionId, next) => {
     setSectionError("");
     setQuestionErrors((current) => ({ ...current, [questionId]: "" }));
     setDraft((current) => ({
       ...current,
       responses: {
         ...current.responses,
-        [questionId]: value,
+        [questionId]: {
+          ...getResponseRecord(current.responses[questionId]),
+          ...next,
+        },
       },
     }));
   };
@@ -288,11 +308,11 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
       return true;
     }
 
-    const unanswered = activeSection.questions.filter((question) => !draft.responses[question.id]);
+    const unanswered = activeSection.questions.filter((question) => !isResolvedResponse(draft.responses[question.id]));
 
     if (unanswered.length) {
       setQuestionErrors(
-        Object.fromEntries(unanswered.map((question) => [question.id, "Please select a score before continuing."]))
+        Object.fromEntries(unanswered.map((question) => [question.id, "Select a score, skip for now, or preferred not to answer."]))
       );
       setSectionError(`Please answer all questions in ${activeSection.title} before continuing.`);
       return false;
@@ -307,7 +327,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
 
   const canContinueFromSection = !activeSection
     ? true
-    : activeSection.questions.every((question) => draft.responses[question.id]);
+    : activeSection.questions.every((question) => isResolvedResponse(draft.responses[question.id]));
 
   const handleNext = () => {
     if (currentStep === 0 && !validateProfile()) return;
@@ -333,7 +353,9 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
       : saveState === "error"
         ? "We could not save the report."
         : currentStep === reviewStep
-          ? "AI report is being prepared automatically."
+          ? reportGenerationEnabled
+            ? "AI report is being prepared automatically."
+            : "Assessment report is being saved with scorecard-only mode."
           : "Draft autosaves locally.";
 
   if (!hydrated) {
@@ -354,13 +376,10 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
         <aside className="space-y-4">
           <Card className="border-0 bg-[linear-gradient(160deg,rgba(14,116,144,0.98),rgba(15,23,42,0.98))] text-white ring-0 shadow-2xl">
             <CardHeader>
-              <div className="flex items-center gap-3 text-sm text-white/75">
-                <Building2 className="size-4" />
-                Professional AI readiness
-              </div>
+              <BrandBadge dark subtitle="AI readiness and transformation advisory" />
               <CardTitle className="text-2xl font-semibold text-white">Assessment workspace</CardTitle>
               <CardDescription className="text-white/75">
-                Designed for both for-profit and non-profit organizations with executive-ready outputs.
+                Designed by I2E Consulting for both for-profit and non-profit organizations with executive-ready outputs.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -452,6 +471,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false }) 
               saveState={saveState}
               savedReportId={savedReportId}
               chartData={chartData}
+              reportGenerationEnabled={reportGenerationEnabled}
               onBack={handleBack}
               onReset={clearDraft}
             />
@@ -477,6 +497,16 @@ function validateProfilePreview(draft) {
       draft.notes.knownRisks.trim() &&
       draft.notes.challenges.trim() &&
       draft.notes.successMeasures.trim()
+  );
+}
+
+function normalizeDraftResponses(responses) {
+  if (!responses || typeof responses !== "object") {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(responses).map(([questionId, response]) => [questionId, getResponseRecord(response)])
   );
 }
 
@@ -670,45 +700,80 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
         </div>
 
         <div className="space-y-5">
-          {section.questions.map((question) => (
-            <Card
-              key={question.id}
-              className={`border bg-white shadow-sm ${questionErrors[question.id] ? "border-rose-300 ring-1 ring-rose-200" : "border-slate-200/80"}`}
-            >
-              <CardHeader>
-                <CardTitle className="text-lg text-slate-950">{question.prompt}</CardTitle>
-                <CardDescription className="leading-6 text-slate-600">
-                  {question.helperText ? `${question.helperText} ` : ""}
-                  {question.why ? `Why this matters: ${question.why}` : ""}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-5 gap-3">
-                  {scoreLabels.map((label, index) => {
-                    const value = index + 1;
-                    const active = draft.responses[question.id] === value;
+          {section.questions.map((question) => {
+            const response = getResponseRecord(draft.responses[question.id]);
 
-                    return (
-                      <button
-                        key={label}
-                        type="button"
-                        onClick={() => updateResponse(question.id, value)}
-                        className={`rounded-2xl border px-3 py-4 text-left transition ${
-                          active
-                            ? "border-cyan-500 bg-cyan-50 text-cyan-950 shadow-sm"
-                            : "border-slate-200 bg-white text-slate-700 hover:border-cyan-300 hover:bg-cyan-50/60"
-                        }`}
-                      >
-                        <div className="text-lg font-semibold">{value}</div>
-                        <div className="mt-1 text-xs leading-5">{label}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-                <FieldError message={questionErrors[question.id]} />
-              </CardContent>
-            </Card>
-          ))}
+            return (
+              <Card
+                key={question.id}
+                className={`border bg-white shadow-sm ${questionErrors[question.id] ? "border-rose-300 ring-1 ring-rose-200" : "border-slate-200/80"}`}
+              >
+                <CardHeader>
+                  <CardTitle className="text-lg text-slate-950">{question.prompt}</CardTitle>
+                  <CardDescription className="leading-6 text-slate-600">
+                    {question.helperText ? `${question.helperText} ` : ""}
+                    {question.why ? `Why this matters: ${question.why}` : ""}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-5 gap-3">
+                    {scoreLabels.map((label, index) => {
+                      const value = index + 1;
+                      const active = response.mode === "score" && response.score === value;
+
+                      return (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => updateResponse(question.id, { mode: "score", score: value })}
+                          className={`rounded-2xl border px-3 py-4 text-left transition ${
+                            active
+                              ? "border-cyan-500 bg-cyan-50 text-cyan-950 shadow-sm"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-cyan-300 hover:bg-cyan-50/60"
+                          }`}
+                        >
+                          <div className="text-lg font-semibold">{value}</div>
+                          <div className="mt-1 text-xs leading-5">{label}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {nonScoreOptions.map((option) => {
+                      const active = response.mode === option.value;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => updateResponse(question.id, { mode: option.value, score: null })}
+                          className={`rounded-2xl border px-4 py-4 text-left transition ${
+                            active
+                              ? "border-amber-400 bg-amber-50 text-amber-950 shadow-sm"
+                              : "border-slate-200 bg-white text-slate-700 hover:border-amber-300 hover:bg-amber-50/60"
+                          }`}
+                        >
+                          <div className="text-sm font-semibold">{option.label}</div>
+                          <div className="mt-1 text-xs leading-5 text-slate-500">{option.description}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <Field label="Comment">
+                    <Textarea
+                      value={response.comment}
+                      onChange={(event) => updateResponse(question.id, { comment: event.target.value })}
+                      placeholder="Add context, examples, blockers, or any notes for this question."
+                    />
+                  </Field>
+
+                  <FieldError message={questionErrors[question.id]} />
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {sectionError ? (
@@ -737,6 +802,7 @@ function ReviewStep({
   saveState,
   savedReportId,
   chartData,
+  reportGenerationEnabled,
   onBack,
   onReset,
 }) {
@@ -760,9 +826,13 @@ function ReviewStep({
             </Button>
             <div className="rounded-full border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
               {saveState === "saving"
-                ? "Generating AI report and saving..."
+                ? reportGenerationEnabled
+                  ? "Generating AI report and saving..."
+                  : "Saving weighted assessment report..."
                 : saveState === "saved"
-                  ? "AI report saved automatically"
+                  ? reportGenerationEnabled
+                    ? "AI report saved automatically"
+                    : "Scorecard report saved automatically"
                   : saveState === "error"
                     ? "Automatic save failed"
                     : "Preparing report..."}
@@ -779,8 +849,7 @@ function ReviewStep({
 
         {savedReportId ? (
           <div className="mt-6 rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm text-emerald-900">
-            Report generated and saved. View it in <Link href="/reports" className="font-semibold underline">saved reports</Link> or open{" "}
-            <Link href={`/reports/${savedReportId}`} className="font-semibold underline">this report</Link>.
+            Report generated and saved. It is now available in the admin reports area for consultant review and delivery.
           </div>
         ) : null}
 
@@ -931,7 +1000,9 @@ function ReviewStep({
             <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-slate-600">
               {saveState === "error"
                 ? "Please go back to the previous step and try again. Once the save succeeds, the report will appear in saved reports automatically."
-                : "The AI layer is building the executive summary, roadmap language, risk framing, and tooling guidance, then storing everything in the database automatically."}
+                : reportGenerationEnabled
+                  ? "The AI layer is building the executive summary, roadmap language, risk framing, and tooling guidance, then storing everything in the database automatically."
+                  : "AI report generation is currently disabled by the admin, so this assessment will be saved with the weighted scorecard and structured responses only."}
             </p>
           </div>
         )}
@@ -940,11 +1011,6 @@ function ReviewStep({
           <Button variant="ghost" className="rounded-full px-2 text-slate-500 hover:text-slate-900" onClick={onReset}>
             Reset draft
           </Button>
-          {savedReportId ? (
-            <Button asChild size="lg" className="h-11 rounded-full px-6">
-              <Link href={`/reports/${savedReportId}`}>Open saved report</Link>
-            </Button>
-          ) : null}
         </div>
       </section>
     </div>

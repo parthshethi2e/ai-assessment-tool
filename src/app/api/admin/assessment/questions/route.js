@@ -1,4 +1,5 @@
 import { getPrismaClient } from "@/lib/prisma";
+import { logAuditEvent } from "@/lib/auditLog";
 import { requireAdminApiSession } from "@/lib/adminAuth";
 import { ensureDefaultAssessmentFramework, hasFrameworkDelegates } from "@/lib/assessmentRepository";
 
@@ -8,6 +9,22 @@ function slugify(value) {
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function snapshotQuestion(question) {
+  if (!question) return null;
+
+  return {
+    id: question.id,
+    key: question.key,
+    sectionId: question.sectionId,
+    prompt: question.prompt,
+    helperText: question.helperText,
+    whyItMatters: question.whyItMatters,
+    weight: Number(question.weight),
+    sortOrder: Number(question.sortOrder),
+    isActive: Boolean(question.isActive),
+  };
 }
 
 export async function POST(request) {
@@ -22,6 +39,7 @@ export async function POST(request) {
     const helperText = body.helperText?.trim() || null;
     const weight = Number(body.weight || 1);
     const sortOrder = body.sortOrder == null ? null : Number(body.sortOrder);
+    let section = null;
 
     if (!body.sectionId || !prompt) {
       return Response.json({ error: "Section and prompt are required." }, { status: 400 });
@@ -42,13 +60,23 @@ export async function POST(request) {
     let question;
 
     if (hasFrameworkDelegates(prisma)) {
+      section = await prisma.assessmentSection.findFirst({
+        where: {
+          OR: [{ id: body.sectionId }, { key: body.sectionId }],
+        },
+      });
+
+      if (!section) {
+        return Response.json({ error: "Section not found." }, { status: 404 });
+      }
+
       const count = await prisma.assessmentQuestion.count({
-        where: { sectionId: body.sectionId },
+        where: { sectionId: section.id },
       });
 
       question = await prisma.assessmentQuestion.create({
         data: {
-          sectionId: body.sectionId,
+          sectionId: section.id,
           key: body.key?.trim() || slugify(prompt),
           prompt,
           helperText,
@@ -60,10 +88,20 @@ export async function POST(request) {
       });
     } else {
       const countRows = await prisma.$queryRawUnsafe(
-        `SELECT COUNT(*)::int AS count FROM "AssessmentQuestion" WHERE "sectionId" = $1`,
+        `SELECT * FROM "AssessmentSection" WHERE "id" = $1 OR "key" = $1 LIMIT 1`,
         body.sectionId
       );
-      const count = countRows[0]?.count ?? 0;
+      section = countRows[0];
+
+      if (!section) {
+        return Response.json({ error: "Section not found." }, { status: 404 });
+      }
+
+      const existingRows = await prisma.$queryRawUnsafe(
+        `SELECT COUNT(*)::int AS count FROM "AssessmentQuestion" WHERE "sectionId" = $1`,
+        section.id
+      );
+      const count = existingRows[0]?.count ?? 0;
       const insertedRows = await prisma.$queryRawUnsafe(
         `
           INSERT INTO "AssessmentQuestion" (
@@ -83,7 +121,7 @@ export async function POST(request) {
           RETURNING *
         `,
         body.key?.trim() || slugify(prompt),
-        body.sectionId,
+        section.id,
         prompt,
         helperText,
         whyItMatters,
@@ -93,6 +131,24 @@ export async function POST(request) {
       );
       question = insertedRows[0];
     }
+
+    await logAuditEvent({
+      actorEmail: auth.session.adminUser.email,
+      actorType: "admin",
+      action: "framework.question_created",
+      entityType: "assessment_question",
+      entityId: question.id,
+      details: {
+        section: section
+          ? {
+              id: section.id,
+              key: section.key,
+              title: section.title,
+            }
+          : null,
+        question: snapshotQuestion(question),
+      },
+    });
 
     return Response.json({ question });
   } catch (error) {

@@ -1,4 +1,6 @@
 import puppeteer from "puppeteer";
+import { requireAdminApiSession } from "@/lib/adminAuth";
+import { logAuditEvent } from "@/lib/auditLog";
 import { prisma } from "@/lib/prisma";
 
 function parseJson(value) {
@@ -170,7 +172,7 @@ export async function GET(_request, { params }) {
       </head>
       <body>
         <div class="hero">
-          <div class="label">AI readiness report</div>
+          <div class="label">I2E Consulting report</div>
           <h1 style="margin-top:10px;font-size:34px;">${escapeHtml(profile.organizationName || "Organization report")}</h1>
           <p class="muted" style="margin-top:10px;font-size:14px;line-height:1.7;">
             ${escapeHtml(profile.organizationType || "Organization")} • ${escapeHtml(profile.sector || "Sector not provided")} • ${escapeHtml(profile.sizeBand || "Size not provided")}
@@ -290,6 +292,8 @@ export async function GET(_request, { params }) {
 
 export async function DELETE(_request, { params }) {
   try {
+    const auth = await requireAdminApiSession(_request);
+    if (!auth.ok) return auth.response;
     const { id } = await params;
 
     const report = await prisma.survey.findUnique({
@@ -304,9 +308,83 @@ export async function DELETE(_request, { params }) {
       where: { id },
     });
 
+    await logAuditEvent({
+      actorEmail: auth.session.adminUser.email,
+      actorType: "admin",
+      action: "report.deleted",
+      entityType: "survey",
+      entityId: id,
+      details: {
+        organizationName: parseJson(report.answers)?.profile?.organizationName || null,
+        finalScore: report.finalScore,
+        deliveryStatus: report.deliveryStatus,
+      },
+    });
+
     return Response.json({ success: true });
   } catch (error) {
     console.error("DELETE REPORT ERROR:", error);
     return Response.json({ error: "Unable to delete report." }, { status: 500 });
+  }
+}
+
+export async function PATCH(request, { params }) {
+  try {
+    const auth = await requireAdminApiSession(request);
+    if (!auth.ok) return auth.response;
+
+    const { id } = await params;
+    const body = await request.json();
+    const deliveryStatus = String(body.deliveryStatus || "pending").trim().toLowerCase();
+    const deliveryNotes = String(body.deliveryNotes || "").trim();
+
+    if (!["pending", "delivered"].includes(deliveryStatus)) {
+      return Response.json({ error: "Invalid delivery status." }, { status: 400 });
+    }
+
+    const report = await prisma.survey.findUnique({
+      where: { id },
+    });
+
+    if (!report) {
+      return Response.json({ error: "Report not found." }, { status: 404 });
+    }
+
+    const updatedReport = await prisma.survey.update({
+      where: { id },
+      data: {
+        deliveryStatus,
+        deliveredAt: deliveryStatus === "delivered" ? new Date() : null,
+        deliveredByEmail: deliveryStatus === "delivered" ? auth.session.adminUser.email : null,
+        deliveryNotes: deliveryNotes || null,
+      },
+    });
+
+    await logAuditEvent({
+      actorEmail: auth.session.adminUser.email,
+      actorType: "admin",
+      action: deliveryStatus === "delivered" ? "report.delivered" : "report.delivery_reset",
+      entityType: "survey",
+      entityId: id,
+      details: {
+        before: {
+          deliveryStatus: report.deliveryStatus,
+          deliveredAt: report.deliveredAt,
+          deliveredByEmail: report.deliveredByEmail,
+          deliveryNotes: report.deliveryNotes,
+        },
+        after: {
+          deliveryStatus: updatedReport.deliveryStatus,
+          deliveredAt: updatedReport.deliveredAt,
+          deliveredByEmail: updatedReport.deliveredByEmail,
+          deliveryNotes: updatedReport.deliveryNotes,
+        },
+      },
+    });
+
+    return Response.json({ report: updatedReport });
+  } catch (error) {
+    console.error("UPDATE REPORT DELIVERY ERROR:", error);
+    return Response.json({ error: "Unable to update report delivery." }, { status: 500 });
   }
 }

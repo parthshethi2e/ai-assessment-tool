@@ -1,25 +1,30 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import ReportsList from "@/components/reports/ReportsList";
+import SiteHeader from "@/components/SiteHeader";
+import { requireAdminPageSession } from "@/lib/adminAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
-  const reports = await prisma.survey.findMany({
-    orderBy: { createdAt: "desc" },
-  });
+  const session = await requireAdminPageSession();
+  const [reports] = await Promise.all([
+    prisma.survey.findMany({
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#edf3f7_100%)]">
+      <SiteHeader current="/admin" />
       <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
         <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Saved reports</p>
-            <h1 className="font-heading mt-2 text-4xl font-semibold tracking-tight text-slate-950">Assessment history</h1>
+            <h1 className="font-heading mt-2 text-4xl font-semibold tracking-tight text-slate-950">I2E Consulting report history</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-              Review saved assessments, revisit executive reports, and export a PDF snapshot when needed.
+              Review saved assessments, revisit executive reports, and export an I2E Consulting PDF snapshot when needed.
             </p>
           </div>
 
@@ -31,7 +36,7 @@ export default async function ReportsPage() {
           </Button>
         </div>
 
-        <ReportsList initialReports={reports} />
+        <ReportsList initialReports={reports} canManage={Boolean(session)} />
       </div>
     </div>
   );

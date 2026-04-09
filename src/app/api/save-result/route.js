@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { logAuditEvent } from "@/lib/auditLog";
+import { isResolvedResponse } from "@/lib/assessment";
 
 export async function POST(request) {
   try {
@@ -29,7 +31,9 @@ export async function POST(request) {
       return Response.json({ error: "A valid maturity stage is required." }, { status: 400 });
     }
 
-    if (!Object.keys(responses).length) {
+    const resolvedResponses = Object.values(responses).filter((response) => isResolvedResponse(response));
+
+    if (!resolvedResponses.length) {
       return Response.json({ error: "At least one assessment response is required." }, { status: 400 });
     }
 
@@ -47,9 +51,29 @@ export async function POST(request) {
           profile,
           notes,
           responses,
+          meta: {
+            reportGenerationEnabled: body.reportGenerationEnabled !== false,
+          },
           assessment: body.assessment || {},
         },
         aiInsights: body.ai || {},
+      },
+    });
+
+    await logAuditEvent({
+      actorType: "system",
+      action: "assessment.created",
+      entityType: "survey",
+      entityId: survey.id,
+      details: {
+        organizationName: profile.organizationName,
+        organizationType: profile.organizationType,
+        sector: profile.sector || null,
+        respondentRole: profile.respondentRole || null,
+        finalScore,
+        maturityLevel: body.maturity,
+        reportGenerationEnabled: body.reportGenerationEnabled !== false,
+        answeredQuestionCount: resolvedResponses.length,
       },
     });
 

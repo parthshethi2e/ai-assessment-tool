@@ -1,6 +1,21 @@
 import { getPrismaClient } from "@/lib/prisma";
+import { logAuditEvent } from "@/lib/auditLog";
 import { requireAdminApiSession } from "@/lib/adminAuth";
 import { hasFrameworkDelegates } from "@/lib/assessmentRepository";
+
+function snapshotSection(section) {
+  if (!section) return null;
+
+  return {
+    id: section.id,
+    key: section.key,
+    title: section.title,
+    description: section.description,
+    weight: Number(section.weight),
+    sortOrder: Number(section.sortOrder),
+    isActive: Boolean(section.isActive),
+  };
+}
 
 export async function PATCH(request, { params }) {
   try {
@@ -31,9 +46,10 @@ export async function PATCH(request, { params }) {
     }
 
     let section;
+    let existing;
 
     if (hasFrameworkDelegates(prisma)) {
-      const existing = await prisma.assessmentSection.findFirst({
+      existing = await prisma.assessmentSection.findFirst({
         where: {
           OR: [{ id }, { key: id }],
         },
@@ -58,7 +74,7 @@ export async function PATCH(request, { params }) {
         `SELECT * FROM "AssessmentSection" WHERE "id" = $1 OR "key" = $1 LIMIT 1`,
         id
       );
-      const existing = existingRows[0];
+      existing = existingRows[0];
 
       if (!existing) {
         return Response.json({ error: "Section not found." }, { status: 404 });
@@ -86,6 +102,18 @@ export async function PATCH(request, { params }) {
       section = updatedRows[0];
     }
 
+    await logAuditEvent({
+      actorEmail: auth.session.adminUser.email,
+      actorType: "admin",
+      action: "framework.section_updated",
+      entityType: "assessment_section",
+      entityId: section.id,
+      details: {
+        before: snapshotSection(existing),
+        after: snapshotSection(section),
+      },
+    });
+
     return Response.json({ section });
   } catch (error) {
     console.error("UPDATE SECTION ERROR:", error);
@@ -99,9 +127,10 @@ export async function DELETE(_request, { params }) {
     if (!auth.ok) return auth.response;
     const prisma = getPrismaClient();
     const { id } = await params;
+    let existing;
 
     if (hasFrameworkDelegates(prisma)) {
-      const existing = await prisma.assessmentSection.findFirst({
+      existing = await prisma.assessmentSection.findFirst({
         where: {
           OR: [{ id }, { key: id }],
         },
@@ -114,18 +143,41 @@ export async function DELETE(_request, { params }) {
       await prisma.assessmentSection.delete({
         where: { id: existing.id },
       });
+
+      await logAuditEvent({
+        actorEmail: auth.session.adminUser.email,
+        actorType: "admin",
+        action: "framework.section_deleted",
+        entityType: "assessment_section",
+        entityId: existing.id,
+        details: {
+          key: existing.key,
+          title: existing.title,
+        },
+      });
     } else {
       const existingRows = await prisma.$queryRawUnsafe(
         `SELECT * FROM "AssessmentSection" WHERE "id" = $1 OR "key" = $1 LIMIT 1`,
         id
       );
-      const existing = existingRows[0];
+      existing = existingRows[0];
 
       if (!existing) {
         return Response.json({ error: "Section not found." }, { status: 404 });
       }
 
       await prisma.$executeRawUnsafe(`DELETE FROM "AssessmentSection" WHERE "id" = $1`, existing.id);
+
+      await logAuditEvent({
+        actorEmail: auth.session.adminUser.email,
+        actorType: "admin",
+        action: "framework.section_deleted",
+        entityType: "assessment_section",
+        entityId: existing.id,
+        details: {
+          section: snapshotSection(existing),
+        },
+      });
     }
 
     return Response.json({ success: true });

@@ -11,7 +11,7 @@ function getAnswers(report) {
   return typeof report.answers === "string" ? JSON.parse(report.answers) : report.answers;
 }
 
-export default function ReportsList({ initialReports }) {
+export default function ReportsList({ initialReports, canManage = false }) {
   const router = useRouter();
   const [reports, setReports] = useState(initialReports);
   const [deletingId, setDeletingId] = useState("");
@@ -92,6 +92,15 @@ export default function ReportsList({ initialReports }) {
                     <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-800">
                       {profile.organizationType || "organization"}
                     </span>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
+                        report.deliveryStatus === "delivered"
+                          ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+                          : "border border-amber-200 bg-amber-50 text-amber-800"
+                      }`}
+                    >
+                      {report.deliveryStatus === "delivered" ? "Delivered" : "Pending"}
+                    </span>
                     <span className="text-sm text-slate-500">{new Date(report.createdAt).toLocaleDateString()}</span>
                   </div>
 
@@ -120,15 +129,17 @@ export default function ReportsList({ initialReports }) {
                       Download PDF
                     </a>
                   </Button>
-                  <Button
-                    variant="outline"
-                    className="rounded-full border-rose-200 text-rose-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-800"
-                    disabled={deletingId === report.id}
-                    onClick={() => handleDelete(report.id, profile.organizationName)}
-                  >
-                    <Trash2 className="size-4" />
-                    {deletingId === report.id ? "Deleting..." : "Delete"}
-                  </Button>
+                  {canManage ? (
+                    <Button
+                      variant="outline"
+                      className="rounded-full border-rose-200 text-rose-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-800"
+                      disabled={deletingId === report.id}
+                      onClick={() => handleDelete(report.id, profile.organizationName)}
+                    >
+                      <Trash2 className="size-4" />
+                      {deletingId === report.id ? "Deleting..." : "Delete"}
+                    </Button>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>

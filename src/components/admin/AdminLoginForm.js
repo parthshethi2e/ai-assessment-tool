@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LockKeyhole, Shield } from "lucide-react";
+import BrandBadge from "@/components/BrandBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -71,14 +72,15 @@ export default function AdminLoginForm() {
       <div className="mx-auto flex min-h-screen max-w-6xl items-center px-6 py-12 lg:px-8">
         <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center">
           <div className="space-y-6">
+            <BrandBadge subtitle="Secure administration portal" />
             <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-900">
               <Shield className="size-4" />
               Protected admin access
             </div>
             <div className="space-y-4">
-              <h1 className="font-heading text-5xl font-semibold tracking-tight text-slate-950">Admin login</h1>
+              <h1 className="font-heading text-5xl font-semibold tracking-tight text-slate-950">I2E Consulting admin login</h1>
               <p className="max-w-2xl text-base leading-7 text-slate-600">
-                Sign in to manage the assessment framework, edit sections and questions, and review admin reporting activity. Sessions automatically time out after inactivity.
+                Sign in to manage the I2E Consulting assessment framework, edit sections and questions, and review reporting activity. Sessions automatically time out after inactivity.
               </p>
             </div>
           </div>
@@ -89,7 +91,7 @@ export default function AdminLoginForm() {
                 <LockKeyhole className="size-5 text-cyan-700" />
                 Admin sign in
               </CardTitle>
-              <CardDescription>Use the configured admin credentials to access the control center.</CardDescription>
+              <CardDescription>Use the configured credentials to access the I2E Consulting control center.</CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit}>

@@ -80,7 +80,33 @@ model Survey {
   governanceScore Float?
   finalScore      Float
   maturityLevel   String
+  deliveryStatus  String        @default("pending")
+  deliveredAt     DateTime?
+  deliveredByEmail String?
+  deliveryNotes   String?
   answers         Json
   aiInsights      Json
   createdAt       DateTime      @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorEmail String?
+  actorType  String
+  action     String
+  entityType String
+  entityId   String
+  details    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([action, createdAt])
+}
+
+model AssessmentSetting {
+  id                     String   @id @default(uuid())
+  key                    String   @unique
+  reportGenerationEnabled Boolean @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 }

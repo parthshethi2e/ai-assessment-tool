@@ -7,7 +7,7 @@ function createPrismaClient() {
 }
 
 function hasAssessmentModels(client) {
-  return Boolean(client?.assessmentSection && client?.assessmentQuestion);
+  return Boolean(client?.assessmentSection && client?.assessmentQuestion && client?.auditLog);
 }
 
 export function getPrismaClient() {

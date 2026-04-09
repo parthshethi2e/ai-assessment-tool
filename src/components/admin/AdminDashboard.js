@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BarChart3, ChevronDown, FilePlus2, FolderPlus, Pencil, Settings2, Trash2 } from "lucide-react";
 import AdminLogoutButton from "@/components/admin/AdminLogoutButton";
+import BrandBadge from "@/components/BrandBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,10 +15,12 @@ function parseAnswers(report) {
   return typeof report.answers === "string" ? JSON.parse(report.answers) : report.answers;
 }
 
-export default function AdminDashboard({ initialSections, overview, adminEmail }) {
+export default function AdminDashboard({ initialSections, overview, adminEmail, initialSettings }) {
   const router = useRouter();
   const [sections, setSections] = useState(initialSections);
   const [status, setStatus] = useState("");
+  const [settings, setSettings] = useState(initialSettings);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [newSection, setNewSection] = useState({
     title: "",
     description: "",
@@ -29,6 +32,10 @@ export default function AdminDashboard({ initialSections, overview, adminEmail }
   useEffect(() => {
     setSections(initialSections);
   }, [initialSections]);
+
+  useEffect(() => {
+    setSettings(initialSettings);
+  }, [initialSettings]);
 
   useEffect(() => {
     const refreshSession = async () => {
@@ -46,6 +53,35 @@ export default function AdminDashboard({ initialSections, overview, adminEmail }
   const setMessage = (message) => {
     setStatus(message);
     window.setTimeout(() => setStatus(""), 3000);
+  };
+
+  const updateSettings = async (nextValue) => {
+    setSavingSettings(true);
+
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reportGenerationEnabled: nextValue,
+        }),
+      });
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.error || "Failed to update settings.");
+      }
+
+      setSettings(json.settings);
+      setMessage(`AI report generation ${nextValue ? "enabled" : "disabled"}.`);
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setMessage(error.message || "Failed to update settings.");
+    } finally {
+      setSavingSettings(false);
+    }
   };
 
   const validateNewSection = () => {
@@ -232,10 +268,11 @@ export default function AdminDashboard({ initialSections, overview, adminEmail }
       <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
+            <BrandBadge subtitle="Assessment administration" />
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Admin module</p>
-            <h1 className="font-heading mt-2 text-4xl font-semibold tracking-tight text-slate-950">Assessment control center</h1>
+            <h1 className="font-heading mt-2 text-4xl font-semibold tracking-tight text-slate-950">I2E Consulting control center</h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Manage the live assessment framework, review reporting activity, and keep the question library aligned with how you want the product to behave.
+              Manage the live assessment framework, review reporting activity, and keep the I2E Consulting question library aligned with how you want the product to behave.
             </p>
           </div>
 
@@ -249,6 +286,9 @@ export default function AdminDashboard({ initialSections, overview, adminEmail }
             </Button>
             <Button asChild className="rounded-full">
               <Link href="/reports">View reports</Link>
+            </Button>
+            <Button asChild variant="outline" className="rounded-full">
+              <Link href="/admin/audit-logs">Audit logs</Link>
             </Button>
           </div>
         </div>
@@ -273,6 +313,42 @@ export default function AdminDashboard({ initialSections, overview, adminEmail }
 
         <div className="mt-8 grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
           <div className="space-y-6">
+            <Card className="border border-slate-200/80 bg-white shadow-sm">
+              <CardHeader>
+                <CardTitle>Assessment settings</CardTitle>
+                <CardDescription>Control AI report generation during assessment creation. Score weightage is managed below through section and question weights.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-950">AI report generation</div>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">
+                        When enabled, the assessment automatically generates the AI advisory report. When disabled, consultants will only save the weighted scorecard and structured assessment data.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={savingSettings}
+                      onClick={() => updateSettings(!settings?.reportGenerationEnabled)}
+                      className={`relative inline-flex h-11 w-24 items-center rounded-full transition ${
+                        settings?.reportGenerationEnabled ? "bg-slate-950" : "bg-slate-300"
+                      } ${savingSettings ? "cursor-not-allowed opacity-70" : ""}`}
+                    >
+                      <span
+                        className={`inline-block size-9 transform rounded-full bg-white shadow transition ${
+                          settings?.reportGenerationEnabled ? "translate-x-[3.25rem]" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  <div className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">
+                    {settings?.reportGenerationEnabled ? "Enabled during assessment creation" : "Disabled during assessment creation"}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="border border-slate-200/80 bg-white shadow-sm">
               <CardHeader>
                 <CardTitle>Create section</CardTitle>

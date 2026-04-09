@@ -40,6 +40,40 @@ const sectionAdvice = {
   },
 };
 
+export function getResponseRecord(response) {
+  if (typeof response === "number") {
+    return {
+      mode: "score",
+      score: response,
+      comment: "",
+    };
+  }
+
+  if (response && typeof response === "object") {
+    return {
+      mode: response.mode || (typeof response.score === "number" ? "score" : ""),
+      score: typeof response.score === "number" ? response.score : null,
+      comment: typeof response.comment === "string" ? response.comment : "",
+    };
+  }
+
+  return {
+    mode: "",
+    score: null,
+    comment: "",
+  };
+}
+
+export function isResolvedResponse(response) {
+  const record = getResponseRecord(response);
+  return Boolean(record.mode);
+}
+
+export function getScoredResponseValue(response) {
+  const record = getResponseRecord(response);
+  return record.mode === "score" && typeof record.score === "number" ? record.score : 0;
+}
+
 const useCaseLibrary = {
   "for-profit": {
     default: [
@@ -125,17 +159,43 @@ export function calculateAssessment(draft, sections = []) {
     let weightedPoints = 0;
     let totalWeight = 0;
     let answered = 0;
+    let scoredAnswers = 0;
+    let skipped = 0;
+    let notAnswered = 0;
+    const questionSummaries = [];
 
     for (const question of section.questions) {
-      const value = Number(responses[question.id] || 0);
+      const response = getResponseRecord(responses[question.id]);
+      const value = getScoredResponseValue(response);
       const weight = question.weight || 1;
 
-      if (value > 0) {
+      if (response.mode === "score" && value > 0) {
         answered += 1;
+        scoredAnswers += 1;
       }
 
-      weightedPoints += value * weight;
-      totalWeight += weight;
+      if (response.mode === "skip") {
+        skipped += 1;
+      }
+
+      if (response.mode === "na") {
+        notAnswered += 1;
+      }
+
+      if (response.mode === "score" && value > 0) {
+        weightedPoints += value * weight;
+        totalWeight += weight;
+      }
+
+      questionSummaries.push({
+        id: question.id,
+        prompt: question.prompt,
+        helperText: question.helperText || "",
+        why: question.why || question.whyItMatters || "",
+        mode: response.mode,
+        score: response.score,
+        comment: response.comment,
+      });
     }
 
     const score = totalWeight ? Number((weightedPoints / totalWeight).toFixed(2)) : 0;
@@ -147,7 +207,11 @@ export function calculateAssessment(draft, sections = []) {
       score,
       weight: section.weight || 1,
       answered,
+      scoredAnswers,
+      skipped,
+      notAnswered,
       totalQuestions: section.questions.length,
+      questions: questionSummaries,
     };
   });
 
