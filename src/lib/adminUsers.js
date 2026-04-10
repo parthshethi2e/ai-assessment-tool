@@ -97,7 +97,7 @@ export async function createAdminUser(payload) {
         "id", "email", "passwordHash", "firstName", "lastName", "mobileNumber", "designation", "department",
         "role", "notes", "isActive", "createdAt", "updatedAt"
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+      VALUES ($1::text, $2::text, $3::text, $4::text, $5::text, $6::text, $7::text, $8::text, $9::text, $10::text, $11::boolean, NOW(), NOW())
       RETURNING "id", "email", "firstName", "lastName", "mobileNumber", "designation", "department", "role", "notes",
                 "isActive", "lastLoginAt", "createdAt", "updatedAt"
     `,
@@ -124,14 +124,14 @@ export async function updateAdminUser(id, payload) {
   const rows = await prisma.$queryRawUnsafe(
     `
       UPDATE "AdminUser"
-      SET "firstName" = $2,
-          "lastName" = $3,
-          "mobileNumber" = $4,
-          "designation" = $5,
-          "department" = $6,
-          "role" = $7,
-          "notes" = $8,
-          "isActive" = $9,
+      SET "firstName" = $2::text,
+          "lastName" = $3::text,
+          "mobileNumber" = $4::text,
+          "designation" = $5::text,
+          "department" = $6::text,
+          "role" = $7::text,
+          "notes" = $8::text,
+          "isActive" = $9::boolean,
           "updatedAt" = NOW()
       WHERE "id" = $1
       RETURNING "id", "email", "firstName", "lastName", "mobileNumber", "designation", "department", "role", "notes",
