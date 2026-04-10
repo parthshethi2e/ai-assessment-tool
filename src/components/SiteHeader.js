@@ -14,7 +14,7 @@ export default function SiteHeader({ current = "", hideStartAssessment = false }
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/60 bg-[linear-gradient(180deg,rgba(248,252,255,0.96),rgba(255,255,255,0.88))] backdrop-blur-xl supports-[backdrop-filter]:bg-white/78">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-5 px-6 py-4 lg:px-8">
+      <div className="mx-auto flex max-w-[92rem] flex-wrap items-center justify-between gap-5 px-6 py-4 lg:px-8">
         <Link href="/" className="transition hover:opacity-90">
           <BrandBadge subtitle="AI readiness and transformation advisory" />
         </Link>

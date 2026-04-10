@@ -32,9 +32,9 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(8,145,178,0.14),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(15,23,42,0.12),transparent_32%),linear-gradient(180deg,#f8fcff_0%,#f5f7fb_46%,#eef3f7_100%)]">
       <SiteHeader current="/" />
-      <div className="mx-auto max-w-7xl px-6 py-6 lg:px-8">
-        <main className="py-10 lg:py-16">
-          <section className="grid gap-10 lg:grid-cols-[minmax(0,1.15fr)_420px] lg:items-center">
+      <div className="mx-auto max-w-[92rem] px-6 py-6 lg:px-8">
+        <main className="py-8 lg:py-12">
+          <section className="grid gap-10 lg:grid-cols-[minmax(0,1.35fr)_420px] xl:grid-cols-[minmax(0,1.5fr)_430px] lg:items-center">
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-900">
                 <ChartNoAxesColumn className="size-4" />
@@ -42,10 +42,10 @@ export default function HomePage() {
               </div>
 
               <div className="space-y-5">
-                <h1 className="font-heading max-w-4xl text-5xl font-semibold tracking-tight text-slate-950 lg:text-6xl">
+                <h1 className="font-heading max-w-5xl text-5xl font-semibold tracking-tight text-slate-950 lg:text-6xl">
                   I2E Consulting helps organizations assess AI readiness with clarity and credibility.
                 </h1>
-                <p className="max-w-3xl text-lg leading-8 text-slate-600">
+                <p className="max-w-4xl text-lg leading-8 text-slate-600">
                   A branded advisory platform for organizations to understand readiness, surface priorities, and move toward a practical AI roadmap.
                 </p>
               </div>
@@ -62,15 +62,15 @@ export default function HomePage() {
                 </Button>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-5 sm:grid-cols-3">
                 <Stat value="8" label="Assessment dimensions" />
                 <Stat value="4" label="Starting sectors" />
                 <Stat value="1" label="Executive-ready report flow" />
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-white/70 bg-white/85 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur">
-              <div className="rounded-[1.75rem] bg-[linear-gradient(160deg,#0f172a,#164e63)] p-6 text-white">
+            <div className="rounded-[2.25rem] border border-white/70 bg-white/85 p-7 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur">
+              <div className="rounded-[1.9rem] bg-[linear-gradient(160deg,#0f172a,#164e63)] p-7 text-white">
                 <div className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">What I2E Consulting delivers</div>
                 <div className="font-heading mt-4 text-2xl font-semibold">An assessment-led consulting experience, not a generic survey.</div>
                 <div className="mt-4 space-y-3 text-sm leading-6 text-white/75">
@@ -80,7 +80,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 px-5 py-5">
                 <div className="font-semibold text-slate-950">Current-to-target maturity view</div>
                 <p className="mt-1 text-sm leading-6 text-slate-600">
                   Each response captures today’s maturity, target maturity, and respondent comments so the report can prioritize the real gap.
@@ -89,7 +89,7 @@ export default function HomePage() {
             </div>
           </section>
 
-          <section className="mt-20">
+          <section className="mt-16">
             <div className="mb-8 flex flex-wrap items-end justify-between gap-6">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Core capabilities</div>
@@ -164,9 +164,9 @@ export default function HomePage() {
 
 function Stat({ value, label }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-white/75 px-5 py-5 shadow-sm backdrop-blur">
-      <div className="font-heading text-3xl font-semibold tracking-tight text-slate-950">{value}</div>
-      <div className="mt-1 text-sm text-slate-500">{label}</div>
+    <div className="min-h-28 rounded-[1.75rem] border border-slate-200 bg-white/80 px-6 py-6 shadow-sm backdrop-blur">
+      <div className="font-heading text-4xl font-semibold tracking-tight text-slate-950">{value}</div>
+      <div className="mt-2 text-sm leading-5 text-slate-500">{label}</div>
     </div>
   );
 }
