@@ -16,7 +16,7 @@ export const metadata = {
     default: "I2E Consulting",
     template: "%s | I2E Consulting",
   },
-  description: "I2E Consulting AI readiness assessment platform for for-profit and non-profit organizations.",
+  description: "I2E Consulting AI readiness assessment platform for sector-focused transformation planning.",
 };
 
 export default function RootLayout({ children }) {

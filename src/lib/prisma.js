@@ -7,7 +7,10 @@ function createPrismaClient() {
 }
 
 function hasAssessmentModels(client) {
-  return Boolean(client?.assessmentSection && client?.assessmentQuestion && client?.auditLog);
+  const questionFields = client?._runtimeDataModel?.models?.AssessmentQuestion?.fields || [];
+  const hasQuestionScoreLabels = questionFields.some((field) => field.name === "scoreLabels");
+
+  return Boolean(client?.assessmentSection && client?.assessmentQuestion && client?.auditLog && hasQuestionScoreLabels);
 }
 
 export function getPrismaClient() {

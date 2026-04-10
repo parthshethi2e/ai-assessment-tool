@@ -15,8 +15,12 @@ export async function POST(request) {
       return Response.json({ error: "A valid organization name is required." }, { status: 400 });
     }
 
-    if (!profile.organizationType || !profile.sector || !profile.sizeBand || !profile.annualBudgetBand || !profile.respondentRole) {
+    if (!profile.sector || !profile.sizeBand || !profile.annualBudgetBand || !profile.respondentRole) {
       return Response.json({ error: "Complete the organization profile before saving." }, { status: 400 });
+    }
+
+    if (!profile.currentTools?.trim()) {
+      return Response.json({ error: "Current tools are required." }, { status: 400 });
     }
 
     if (!notes.priority || !notes.timeline) {
@@ -48,7 +52,10 @@ export async function POST(request) {
         leadershipScore: scores.strategy ?? null,
         governanceScore: scores.governance ?? null,
         answers: {
-          profile,
+          profile: {
+            ...profile,
+            organizationType: "for-profit",
+          },
           notes,
           responses,
           meta: {
@@ -67,10 +74,13 @@ export async function POST(request) {
       entityId: survey.id,
       details: {
         organizationName: profile.organizationName,
-        organizationType: profile.organizationType,
+        organizationType: "for-profit",
         sector: profile.sector || null,
         respondentRole: profile.respondentRole || null,
+        currentTools: profile.currentTools || null,
         finalScore,
+        targetScore: body.assessment?.targetScore ?? null,
+        maturityGap: body.assessment?.maturityGap ?? null,
         maturityLevel: body.maturity,
         reportGenerationEnabled: body.reportGenerationEnabled !== false,
         answeredQuestionCount: resolvedResponses.length,

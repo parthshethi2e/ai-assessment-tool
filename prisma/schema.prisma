@@ -35,6 +35,7 @@ model AssessmentQuestion {
   prompt      String
   helperText  String?
   whyItMatters String?
+  scoreLabels Json?
   weight      Float             @default(1)
   sortOrder   Int
   isActive    Boolean           @default(true)

@@ -50,6 +50,9 @@ export default async function ReportDetailPage({ params }) {
         comment: question.comment.trim(),
         mode: question.mode,
         score: question.score,
+        scoreLabel: question.scoreLabel,
+        targetScore: question.targetScore,
+        targetScoreLabel: question.targetScoreLabel,
       }))
   );
 
@@ -64,8 +67,7 @@ export default async function ReportDetailPage({ params }) {
               {profile.organizationName || "Organization report"}
             </h1>
             <p className="mt-3 text-sm leading-6 text-slate-600">
-              {profile.organizationType || "organization"} • {profile.sector || "sector not provided"} • Generated on{" "}
-              {new Date(report.createdAt).toLocaleString()}
+              {profile.sector || "sector not provided"} • Generated on {new Date(report.createdAt).toLocaleString()}
             </p>
           </div>
 
@@ -96,7 +98,7 @@ export default async function ReportDetailPage({ params }) {
                 <CardDescription className="text-white/70">
                   {reportMeta.reportGenerationEnabled === false
                     ? "AI report generation was disabled for this assessment, so this saved report shows the weighted scorecard and structured responses."
-                    : `Tailored to ${profile.organizationType || "the organization"} context and the captured score profile.`}
+                    : "Tailored to the selected sector, captured score profile, target maturity gaps, and respondent comments."}
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-3">
@@ -186,8 +188,8 @@ export default async function ReportDetailPage({ params }) {
                 <CardTitle>Organization context</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-slate-600">
-                <ContextRow label="Type">{profile.organizationType || "n/a"}</ContextRow>
                 <ContextRow label="Sector">{profile.sector || "n/a"}</ContextRow>
+                <ContextRow label="Current tools">{profile.currentTools || "n/a"}</ContextRow>
                 <ContextRow label="Size">{profile.sizeBand || "n/a"}</ContextRow>
                 <ContextRow label="Budget">{profile.annualBudgetBand || "n/a"}</ContextRow>
                 <ContextRow label="Priority">{notes.priority || "n/a"}</ContextRow>
@@ -335,7 +337,9 @@ function ContextRow({ label, children }) {
 
 function formatResponseLabel(item) {
   if (item.mode === "score") {
-    return `Selected score: ${item.score}/5`;
+    return `Current maturity: ${item.score}/5${item.scoreLabel ? ` (${item.scoreLabel})` : ""}${
+      item.targetScore ? ` • Target maturity: ${item.targetScore}/5${item.targetScoreLabel ? ` (${item.targetScoreLabel})` : ""}` : ""
+    }`;
   }
 
   if (item.mode === "skip") {

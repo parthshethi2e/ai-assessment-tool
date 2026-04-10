@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Building2, CheckCircle2, CircleDashed, Home } from "lucide-react";
 import {
   annualBudgetBands,
-  organizationTypes,
   priorityOptions,
   respondentRoles,
   scoreLabels,
@@ -36,6 +36,21 @@ const nonScoreOptions = [
   },
 ];
 
+function getQuestionScoreLabels(question) {
+  return [1, 2, 3, 4, 5].map((value) => question.scoreLabels?.[value] || question.scoreLabels?.[String(value)] || scoreLabels[value - 1]);
+}
+
+function getClickedAnchor(event) {
+  const target = event.target;
+
+  if (target?.closest) {
+    return target.closest("a[href]");
+  }
+
+  const path = event.composedPath?.() || [];
+  return path.find((item) => item?.tagName === "A" && item?.href) || null;
+}
+
 const defaultDraft = {
   profile: {
     organizationName: "",
@@ -45,6 +60,7 @@ const defaultDraft = {
     annualBudgetBand: "",
     geography: "",
     respondentRole: "",
+    currentTools: "",
     mission: "",
   },
   responses: {},
@@ -58,6 +74,7 @@ const defaultDraft = {
 };
 
 export default function AssessmentWorkspace({ sections, restoreDraft = false, reportGenerationEnabled = true }) {
+  const router = useRouter();
   const [draft, setDraft] = useState(defaultDraft);
   const [hydrated, setHydrated] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -69,6 +86,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
   const [sectionError, setSectionError] = useState("");
   const [questionErrors, setQuestionErrors] = useState({});
   const [hasAutoSubmitted, setHasAutoSubmitted] = useState(false);
+  const [leavePrompt, setLeavePrompt] = useState(null);
 
   useEffect(() => {
     if (!restoreDraft) {
@@ -95,7 +113,12 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
         setDraft({
           ...defaultDraft,
           ...parsed,
-          profile: { ...defaultDraft.profile, ...parsed.profile },
+          profile: {
+            ...defaultDraft.profile,
+            ...parsed.profile,
+            organizationType: "for-profit",
+            sector: sectorOptions.includes(parsed.profile?.sector) ? parsed.profile.sector : "",
+          },
           notes: { ...defaultDraft.notes, ...parsed.notes },
           responses: normalizeDraftResponses(parsed.responses),
         });
@@ -117,6 +140,8 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
   const reviewStep = totalSteps - 1;
   const activeSection = currentStep > 0 && currentStep < reviewStep ? sections[currentStep - 1] : null;
   const progress = Math.round((currentStep / reviewStep) * 100);
+  const reportIsSaved = currentStep === reviewStep && saveState === "saved" && Boolean(savedReportId);
+  const reportIsGenerating = currentStep === reviewStep && !reportIsSaved;
 
   const chartData = assessment.scoredSections.map((section) => ({
     subject: section.title,
@@ -191,14 +216,51 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
     submitAssessment();
   }, [assessment, currentStep, draft, hasAutoSubmitted, reportGenerationEnabled, reviewStep, saveState, savedReportId, status]);
 
+  useEffect(() => {
+    const handleDocumentClick = (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      const anchor = getClickedAnchor(event);
+
+      if (!anchor) {
+        return;
+      }
+
+      const targetUrl = new URL(anchor.href, window.location.href);
+      const currentUrl = new URL(window.location.href);
+
+      if (targetUrl.origin !== currentUrl.origin || targetUrl.pathname.startsWith("/survey")) {
+        return;
+      }
+
+      if (reportIsSaved) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+      setLeavePrompt({
+        href: `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`,
+        type: reportIsGenerating ? "generating" : "progress",
+      });
+    };
+
+    document.addEventListener("click", handleDocumentClick, true);
+    return () => document.removeEventListener("click", handleDocumentClick, true);
+  }, [reportIsGenerating, reportIsSaved]);
+
   const updateProfile = (field, value) => {
     setProfileErrors((current) => ({ ...current, [field]: "" }));
     setDraft((current) => ({
       ...current,
-      profile: {
-        ...current.profile,
-        [field]: value,
-      },
+          profile: {
+            ...current.profile,
+            organizationType: "for-profit",
+            [field]: value,
+          },
     }));
   };
 
@@ -242,6 +304,25 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
     setHasAutoSubmitted(false);
   };
 
+  const confirmLeaveAssessment = () => {
+    const href = leavePrompt?.href || "/";
+    window.localStorage.removeItem(STORAGE_KEY);
+    setLeavePrompt(null);
+    router.push(href);
+  };
+
+  const requestLeaveAssessment = (href) => {
+    if (reportIsSaved) {
+      router.push(href);
+      return;
+    }
+
+    setLeavePrompt({
+      href,
+      type: reportIsGenerating ? "generating" : "progress",
+    });
+  };
+
   const validateProfile = () => {
     const errors = {};
 
@@ -249,10 +330,6 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
       errors.organizationName = "Organization name is required.";
     } else if (draft.profile.organizationName.trim().length < 3) {
       errors.organizationName = "Organization name must be at least 3 characters.";
-    }
-
-    if (!draft.profile.organizationType) {
-      errors.organizationType = "Organization type is required.";
     }
 
     if (!draft.profile.sector) {
@@ -277,6 +354,10 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
 
     if (!draft.profile.mission.trim()) {
       errors.mission = "Mission or business context is required.";
+    }
+
+    if (!draft.profile.currentTools.trim()) {
+      errors.currentTools = "Current tools are required.";
     }
 
     if (!draft.notes.priority) {
@@ -312,7 +393,12 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
 
     if (unanswered.length) {
       setQuestionErrors(
-        Object.fromEntries(unanswered.map((question) => [question.id, "Select a score, skip for now, or preferred not to answer."]))
+        Object.fromEntries(
+          unanswered.map((question) => [
+            question.id,
+            "Select current maturity and target maturity, or choose skip for now / preferred not to answer.",
+          ])
+        )
       );
       setSectionError(`Please answer all questions in ${activeSection.title} before continuing.`);
       return false;
@@ -366,7 +452,13 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
     <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
       <div className="mb-6 flex justify-end">
         <Button asChild variant="outline" className="rounded-full">
-          <Link href="/">
+          <Link
+            href="/"
+            onClick={(event) => {
+              event.preventDefault();
+              requestLeaveAssessment("/");
+            }}
+          >
             <Home className="size-4" />
             Close
           </Link>
@@ -378,9 +470,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
             <CardHeader>
               <BrandBadge dark subtitle="AI readiness and transformation advisory" />
               <CardTitle className="text-2xl font-semibold text-white">Assessment workspace</CardTitle>
-              <CardDescription className="text-white/75">
-                Designed by I2E Consulting for both for-profit and non-profit organizations with executive-ready outputs.
-              </CardDescription>
+              <CardDescription className="text-white/75">Designed by I2E Consulting for executive-ready AI readiness outputs.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -478,20 +568,53 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
           )}
         </main>
       </div>
+      <LeaveAssessmentDialog prompt={leavePrompt} onCancel={() => setLeavePrompt(null)} onConfirm={confirmLeaveAssessment} />
+    </div>
+  );
+}
+
+function LeaveAssessmentDialog({ prompt, onCancel, onConfirm }) {
+  if (!prompt) return null;
+
+  const isGenerating = prompt.type === "generating";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-[2rem] border border-white/70 bg-white p-6 shadow-[0_32px_120px_rgba(15,23,42,0.28)]">
+        <div className="rounded-full border border-cyan-100 bg-cyan-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-800">
+          Assessment in progress
+        </div>
+        <h2 className="font-heading mt-5 text-2xl font-semibold tracking-tight text-slate-950">
+          {isGenerating ? "Your report is still being generated." : "Do you want to leave this assessment?"}
+        </h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          {isGenerating
+            ? "Please wait until report generation is completed. If you leave now, this assessment progress may be lost."
+            : "Leaving now will close and clear the current assessment. Your progress will not be saved as a draft."}
+        </p>
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
+          <Button variant="outline" className="rounded-full" onClick={onCancel}>
+            No, stay here
+          </Button>
+          <Button className="rounded-full bg-slate-950 text-white hover:bg-slate-800" onClick={onConfirm}>
+            Yes, leave assessment
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
 
 function validateProfilePreview(draft) {
   return Boolean(
-    draft.profile.organizationName.trim() &&
-      draft.profile.organizationType &&
+      draft.profile.organizationName.trim() &&
       draft.profile.sector &&
       draft.profile.sizeBand &&
       draft.profile.annualBudgetBand &&
       draft.profile.geography.trim() &&
       draft.profile.respondentRole &&
       draft.profile.mission.trim() &&
+      draft.profile.currentTools.trim() &&
       draft.notes.priority &&
       draft.notes.timeline &&
       draft.notes.knownRisks.trim() &&
@@ -519,8 +642,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Organization profile</p>
             <h1 className="font-heading text-4xl font-semibold tracking-tight text-slate-950">Set the right context before we score anything.</h1>
             <p className="max-w-2xl text-base leading-7 text-slate-600">
-              This version is designed for both commercial and mission-driven organizations, so the profile helps tailor recommendations,
-              benchmarks, and roadmap language.
+              This profile helps tailor recommendations, benchmarks, and roadmap language to the selected sector and operating context.
             </p>
           </div>
 
@@ -538,16 +660,6 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
               placeholder="Example: Horizon Health Network"
             />
             <FieldError message={errors.organizationName} />
-          </Field>
-
-          <Field label="Organization type">
-            <Select
-              aria-invalid={Boolean(errors.organizationType)}
-              value={draft.profile.organizationType}
-              onChange={(event) => updateProfile("organizationType", event.target.value)}
-              options={organizationTypes.map((item) => ({ value: item.id, label: item.label }))}
-            />
-            <FieldError message={errors.organizationType} />
           </Field>
 
           <Field label="Sector">
@@ -627,6 +739,16 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
             <FieldError message={errors.mission} />
           </Field>
 
+          <Field label="Which tools are you currently using?">
+            <Textarea
+              aria-invalid={Boolean(errors.currentTools)}
+              value={draft.profile.currentTools}
+              onChange={(event) => updateProfile("currentTools", event.target.value)}
+              placeholder="Example: Microsoft 365, Google Workspace, Salesforce, Veeva, Power BI, Tableau, Snowflake, ChatGPT, internal tools..."
+            />
+            <FieldError message={errors.currentTools} />
+          </Field>
+
           <div className="grid gap-5 md:grid-cols-2">
             <Field label="Planning horizon">
               <Select
@@ -695,13 +817,14 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
             <p className="max-w-3xl text-base leading-7 text-slate-600">{section.description}</p>
           </div>
           <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-600">
-            Score each statement from 1 to 5 based on what is true today, not what is planned.
+            Select current maturity and target maturity for each statement.
           </div>
         </div>
 
         <div className="space-y-5">
           {section.questions.map((question) => {
             const response = getResponseRecord(draft.responses[question.id]);
+            const questionScoreLabels = getQuestionScoreLabels(question);
 
             return (
               <Card
@@ -716,8 +839,10 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-5 gap-3">
-                    {scoreLabels.map((label, index) => {
+                  <div>
+                    <div className="mb-3 text-sm font-semibold text-slate-900">Current maturity</div>
+                    <div className="grid grid-cols-5 gap-3">
+                    {questionScoreLabels.map((label, index) => {
                       const value = index + 1;
                       const active = response.mode === "score" && response.score === value;
 
@@ -725,7 +850,7 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
                         <button
                           key={label}
                           type="button"
-                          onClick={() => updateResponse(question.id, { mode: "score", score: value })}
+                          onClick={() => updateResponse(question.id, { mode: "score", score: value, targetScore: response.targetScore })}
                           className={`rounded-2xl border px-3 py-4 text-left transition ${
                             active
                               ? "border-cyan-500 bg-cyan-50 text-cyan-950 shadow-sm"
@@ -737,8 +862,36 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
                         </button>
                       );
                     })}
+                    </div>
                   </div>
 
+                  {response.mode === "score" ? (
+                    <div>
+                      <div className="mb-3 text-sm font-semibold text-slate-900">Target maturity</div>
+                      <div className="grid grid-cols-5 gap-3">
+                        {questionScoreLabels.map((label, index) => {
+                          const value = index + 1;
+                          const active = response.targetScore === value;
+
+                          return (
+                            <button
+                              key={`target-${label}`}
+                              type="button"
+                              onClick={() => updateResponse(question.id, { targetScore: value })}
+                              className={`rounded-2xl border px-3 py-4 text-left transition ${
+                                active
+                                  ? "border-slate-900 bg-slate-950 text-white shadow-sm"
+                                  : "border-slate-200 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                              }`}
+                            >
+                              <div className="text-lg font-semibold">{value}</div>
+                              <div className="mt-1 text-xs leading-5">{label}</div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="grid gap-3 md:grid-cols-2">
                     {nonScoreOptions.map((option) => {
                       const active = response.mode === option.value;
@@ -747,7 +900,7 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
                         <button
                           key={option.value}
                           type="button"
-                          onClick={() => updateResponse(question.id, { mode: option.value, score: null })}
+                          onClick={() => updateResponse(question.id, { mode: option.value, score: null, targetScore: null })}
                           className={`rounded-2xl border px-4 py-4 text-left transition ${
                             active
                               ? "border-amber-400 bg-amber-50 text-amber-950 shadow-sm"
@@ -770,6 +923,11 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
                   </Field>
 
                   <FieldError message={questionErrors[question.id]} />
+                  {response.mode === "score" && typeof response.score === "number" && typeof response.targetScore === "number" ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      Gap captured: current {response.score}/5 to target {response.targetScore}/5
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             );
@@ -816,7 +974,7 @@ function ReviewStep({
               {draft.profile.organizationName || "Organization"} is at the {assessment.stage} stage.
             </h1>
             <p className="text-base leading-7 text-slate-600">
-              This report combines the assessment scorecard with tailored recommendations for {draft.profile.organizationType} organizations.
+              This report combines the assessment scorecard with tailored recommendations for the selected sector and target maturity gaps.
             </p>
           </div>
 
@@ -842,8 +1000,8 @@ function ReviewStep({
 
         <div className="grid gap-4 md:grid-cols-4">
           <Metric label="Overall score" value={`${assessment.finalScore}/5`} />
+          <Metric label="Target score" value={assessment.targetScore ? `${assessment.targetScore}/5` : "n/a"} />
           <Metric label="Stage" value={assessment.stage} />
-          <Metric label="Benchmark" value={assessment.benchmark} />
           <Metric label="Confidence" value={`${Math.round(assessment.confidence * 100)}%`} />
         </div>
 
@@ -865,7 +1023,9 @@ function ReviewStep({
                   <div key={section.id}>
                     <div className="mb-2 flex items-center justify-between text-sm">
                       <span className="font-medium text-slate-900">{section.title}</span>
-                      <span className="text-slate-500">{section.score}/5</span>
+                      <span className="text-slate-500">
+                        Current {section.score}/5 {section.targetScore ? `• Target ${section.targetScore}/5` : ""}
+                      </span>
                     </div>
                     <div className="h-2 rounded-full bg-slate-100">
                       <div className="h-2 rounded-full bg-[linear-gradient(90deg,#0ea5e9,#0f172a)]" style={{ width: `${(section.score / 5) * 100}%` }} />
@@ -923,9 +1083,9 @@ function ReviewStep({
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-slate-600">
                 <ContextRow label="Organization">{draft.profile.organizationName || "Not provided"}</ContextRow>
-                <ContextRow label="Type">{draft.profile.organizationType}</ContextRow>
                 <ContextRow label="Sector">{draft.profile.sector || "Not provided"}</ContextRow>
                 <ContextRow label="Size">{draft.profile.sizeBand || "Not provided"}</ContextRow>
+                <ContextRow label="Current tools">{draft.profile.currentTools || "Not provided"}</ContextRow>
                 <ContextRow label="Priority">{draft.notes.priority || "Not provided"}</ContextRow>
                 <ContextRow label="Timeline">{draft.notes.timeline || "Not provided"}</ContextRow>
               </CardContent>
@@ -1049,9 +1209,9 @@ function FieldError({ message }) {
 
 function Metric({ label, value }) {
   return (
-    <div className="rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4">
+    <div className="min-w-0 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4">
       <div className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">{label}</div>
-      <div className="mt-2 text-lg font-semibold text-slate-950">{value}</div>
+      <div className="mt-2 break-words text-base font-semibold leading-tight text-slate-950 sm:text-lg">{value}</div>
     </div>
   );
 }

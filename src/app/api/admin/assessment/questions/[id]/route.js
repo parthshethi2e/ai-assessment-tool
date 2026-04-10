@@ -2,6 +2,7 @@ import { getPrismaClient } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/auditLog";
 import { requireAdminApiSession } from "@/lib/adminAuth";
 import { hasFrameworkDelegates } from "@/lib/assessmentRepository";
+import { defaultScoreLabels } from "@/data/assessmentFramework";
 
 function snapshotQuestion(question) {
   if (!question) return null;
@@ -13,10 +14,44 @@ function snapshotQuestion(question) {
     prompt: question.prompt,
     helperText: question.helperText,
     whyItMatters: question.whyItMatters,
+    scoreLabels: question.scoreLabels || defaultScoreLabels,
     weight: Number(question.weight),
     sortOrder: Number(question.sortOrder),
     isActive: Boolean(question.isActive),
   };
+}
+
+function normalizeScoreLabels(labels) {
+  const next = {};
+
+  for (const value of [1, 2, 3, 4, 5]) {
+    const label = String(labels?.[value] || labels?.[String(value)] || defaultScoreLabels[value] || "").trim();
+
+    if (!label) {
+      return null;
+    }
+
+    next[value] = label;
+  }
+
+  return next;
+}
+
+function questionDelegateSupportsScoreLabels(prisma) {
+  const questionFields = prisma?._runtimeDataModel?.models?.AssessmentQuestion?.fields || [];
+  return questionFields.some((field) => field.name === "scoreLabels");
+}
+
+async function ensureScoreLabelsColumn(prisma) {
+  await prisma.$executeRawUnsafe(`ALTER TABLE "AssessmentQuestion" ADD COLUMN IF NOT EXISTS "scoreLabels" JSONB`);
+  await prisma.$executeRawUnsafe(
+    `
+      UPDATE "AssessmentQuestion"
+      SET "scoreLabels" = $1::jsonb
+      WHERE "scoreLabels" IS NULL
+    `,
+    JSON.stringify(defaultScoreLabels)
+  );
 }
 
 export async function PATCH(request, { params }) {
@@ -24,6 +59,7 @@ export async function PATCH(request, { params }) {
     const auth = await requireAdminApiSession(request);
     if (!auth.ok) return auth.response;
     const prisma = getPrismaClient();
+    await ensureScoreLabelsColumn(prisma);
     const { id } = await params;
     const body = await request.json();
     const prompt = body.prompt?.trim();
@@ -31,6 +67,7 @@ export async function PATCH(request, { params }) {
     const whyItMatters = body.whyItMatters?.trim() || null;
     const weight = Number(body.weight || 1);
     const sortOrder = Number(body.sortOrder || 1);
+    const scoreLabels = normalizeScoreLabels(body.scoreLabels);
 
     if (!prompt) {
       return Response.json({ error: "Question prompt is required." }, { status: 400 });
@@ -48,10 +85,14 @@ export async function PATCH(request, { params }) {
       return Response.json({ error: "Sort order must be greater than 0." }, { status: 400 });
     }
 
+    if (!scoreLabels) {
+      return Response.json({ error: "Labels for scores 1-5 are required." }, { status: 400 });
+    }
+
     let question;
     let existing;
 
-    if (hasFrameworkDelegates(prisma)) {
+    if (hasFrameworkDelegates(prisma) && questionDelegateSupportsScoreLabels(prisma)) {
       existing = await prisma.assessmentQuestion.findFirst({
         where: {
           OR: [{ id }, { key: id }],
@@ -68,6 +109,7 @@ export async function PATCH(request, { params }) {
           prompt,
           helperText,
           whyItMatters,
+          scoreLabels,
           weight,
           sortOrder,
           isActive: body.isActive ?? true,
@@ -90,9 +132,10 @@ export async function PATCH(request, { params }) {
           SET "prompt" = $2,
               "helperText" = $3,
               "whyItMatters" = $4,
-              "weight" = $5,
-              "sortOrder" = $6,
-              "isActive" = $7,
+              "scoreLabels" = $5::jsonb,
+              "weight" = $6,
+              "sortOrder" = $7,
+              "isActive" = $8,
               "updatedAt" = NOW()
           WHERE "id" = $1
           RETURNING *
@@ -101,6 +144,7 @@ export async function PATCH(request, { params }) {
         prompt,
         helperText,
         whyItMatters,
+        JSON.stringify(scoreLabels),
         weight,
         sortOrder,
         body.isActive ?? true
@@ -156,8 +200,7 @@ export async function DELETE(_request, { params }) {
         entityType: "assessment_question",
         entityId: existing.id,
         details: {
-          key: existing.key,
-          prompt: existing.prompt,
+          question: snapshotQuestion(existing),
         },
       });
     } else {

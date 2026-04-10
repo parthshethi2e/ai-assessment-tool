@@ -53,6 +53,7 @@ export function getResponseRecord(response) {
     return {
       mode: response.mode || (typeof response.score === "number" ? "score" : ""),
       score: typeof response.score === "number" ? response.score : null,
+      targetScore: typeof response.targetScore === "number" ? response.targetScore : null,
       comment: typeof response.comment === "string" ? response.comment : "",
     };
   }
@@ -60,12 +61,17 @@ export function getResponseRecord(response) {
   return {
     mode: "",
     score: null,
+    targetScore: null,
     comment: "",
   };
 }
 
 export function isResolvedResponse(response) {
   const record = getResponseRecord(response);
+  if (record.mode === "score") {
+    return typeof record.score === "number" && typeof record.targetScore === "number";
+  }
+
   return Boolean(record.mode);
 }
 
@@ -75,55 +81,31 @@ export function getScoredResponseValue(response) {
 }
 
 const useCaseLibrary = {
-  "for-profit": {
-    default: [
-      "Internal knowledge assistant for policy, SOP, and sales enablement",
-      "Workflow automation for repetitive back-office tasks",
-      "Customer support triage and response drafting",
-    ],
-    Technology: [
-      "Engineering support assistant for specs, QA, and incident analysis",
-      "Customer success knowledge assistant",
-      "Revenue operations forecasting and pipeline intelligence",
-    ],
-    Healthcare: [
-      "Clinical operations documentation assistant",
-      "Revenue cycle workflow automation",
-      "Patient support triage with human review",
-    ],
-    Retail: [
-      "Demand forecasting and inventory optimization",
-      "Merchandising insights and pricing analysis",
-      "Customer service automation with escalation controls",
-    ],
-  },
-  "non-profit": {
-    default: [
-      "Grant and donor reporting assistant",
-      "Program operations knowledge assistant",
-      "Volunteer and beneficiary communication support",
-    ],
-    Education: [
-      "Student or learner support assistant",
-      "Curriculum and knowledge-base search",
-      "Administrative workflow automation",
-    ],
-    "NGO / Charity": [
-      "Case-note summarization with human review",
-      "Impact reporting and donor update drafting",
-      "Field operations knowledge assistant",
-    ],
-    "Foundation / Philanthropy": [
-      "Grant application triage support",
-      "Portfolio reporting assistant",
-      "Research synthesis for funding decisions",
-    ],
-    "Social Impact": [
-      "Impact measurement and outcome reporting assistant",
-      "Community engagement response drafting",
-      "Operations automation for lean teams",
-    ],
-  },
+  default: [
+    "Internal knowledge assistant for policy, SOP, and sales enablement",
+    "Workflow automation for repetitive back-office tasks",
+    "Customer support triage and response drafting",
+  ],
+  Pharma: [
+    "Regulatory and SOP knowledge assistant",
+    "Medical affairs content review support",
+    "Pharmacovigilance intake triage with human review",
+  ],
+  Publishing: [
+    "Editorial workflow assistant for research and drafting support",
+    "Content metadata enrichment and taxonomy automation",
+    "Rights, contracts, and archive knowledge assistant",
+  ],
+  Healthcare: [
+    "Clinical operations documentation assistant",
+    "Revenue cycle workflow automation",
+    "Patient support triage with human review",
+  ],
+  Biotech: [
+    "Research literature synthesis and experiment knowledge assistant",
+    "Clinical trial document and protocol review support",
+    "Quality and compliance workflow automation",
+  ],
 };
 
 export function getStage(score) {
@@ -146,11 +128,8 @@ export function getBenchmarkLabel(score) {
 }
 
 export function getRecommendedUseCases(profile) {
-  const orgType = profile.organizationType || "for-profit";
   const sector = profile.sector;
-  const library = useCaseLibrary[orgType] || useCaseLibrary["for-profit"];
-
-  return library[sector] || library.default;
+  return useCaseLibrary[sector] || useCaseLibrary.default;
 }
 
 export function calculateAssessment(draft, sections = []) {
@@ -162,6 +141,8 @@ export function calculateAssessment(draft, sections = []) {
     let scoredAnswers = 0;
     let skipped = 0;
     let notAnswered = 0;
+    let targetWeightedPoints = 0;
+    let targetTotalWeight = 0;
     const questionSummaries = [];
 
     for (const question of section.questions) {
@@ -187,6 +168,11 @@ export function calculateAssessment(draft, sections = []) {
         totalWeight += weight;
       }
 
+      if (response.mode === "score" && typeof response.targetScore === "number" && response.targetScore > 0) {
+        targetWeightedPoints += response.targetScore * weight;
+        targetTotalWeight += weight;
+      }
+
       questionSummaries.push({
         id: question.id,
         prompt: question.prompt,
@@ -194,17 +180,28 @@ export function calculateAssessment(draft, sections = []) {
         why: question.why || question.whyItMatters || "",
         mode: response.mode,
         score: response.score,
+        scoreLabel: response.score ? question.scoreLabels?.[response.score] || "" : "",
+        targetScore: response.targetScore,
+        targetScoreLabel: response.targetScore ? question.scoreLabels?.[response.targetScore] || "" : "",
+        scoreLabels: question.scoreLabels || null,
+        gap:
+          response.mode === "score" && typeof response.score === "number" && typeof response.targetScore === "number"
+            ? Number((response.targetScore - response.score).toFixed(2))
+            : null,
         comment: response.comment,
       });
     }
 
     const score = totalWeight ? Number((weightedPoints / totalWeight).toFixed(2)) : 0;
+    const targetScore = targetTotalWeight ? Number((targetWeightedPoints / targetTotalWeight).toFixed(2)) : 0;
 
     return {
       id: section.id,
       title: section.title,
       description: section.description,
       score,
+      targetScore,
+      gap: targetScore ? Number((targetScore - score).toFixed(2)) : null,
       weight: section.weight || 1,
       answered,
       scoredAnswers,
@@ -220,8 +217,11 @@ export function calculateAssessment(draft, sections = []) {
   const answeredQuestions = scoredSections.reduce((sum, section) => sum + section.answered, 0);
   const totalQuestions = scoredSections.reduce((sum, section) => sum + section.totalQuestions, 0);
   const finalScore = weightTotal ? Number((weightedTotal / weightTotal).toFixed(2)) : 0;
+  const targetWeightedTotal = scoredSections.reduce((sum, section) => sum + section.targetScore * section.weight, 0);
+  const targetScore = weightTotal ? Number((targetWeightedTotal / weightTotal).toFixed(2)) : 0;
   const confidence = totalQuestions ? Number((answeredQuestions / totalQuestions).toFixed(2)) : 0;
   const stage = getStage(finalScore);
+  const targetStage = targetScore ? getStage(targetScore) : "";
   const strengths = [...scoredSections].sort((a, b) => b.score - a.score).slice(0, 3);
   const priorities = [...scoredSections].sort((a, b) => a.score - b.score).slice(0, 3);
   const benchmark = getBenchmarkLabel(finalScore);
@@ -236,8 +236,11 @@ export function calculateAssessment(draft, sections = []) {
 
   return {
     finalScore,
+    targetScore,
+    maturityGap: targetScore ? Number((targetScore - finalScore).toFixed(2)) : null,
     confidence,
     stage,
+    targetStage,
     benchmark,
     scoredSections,
     strengths,
@@ -288,7 +291,7 @@ export function generateFallbackAnalysis(draft, assessment) {
     })),
     opportunities: assessment.recommendedUseCases.map((item) => ({
       opportunity: item,
-      description: `This use case is a strong fit for a ${draft.profile?.organizationType || "for-profit"} organization in ${draft.profile?.sector || "its sector"} and can be scoped as a pragmatic near-term pilot.`,
+      description: `This use case is a strong fit for the ${draft.profile?.sector || "selected"} sector and can be scoped as a pragmatic near-term pilot.`,
     })),
     roadmap: {
       short_term: roadmap.shortTerm,

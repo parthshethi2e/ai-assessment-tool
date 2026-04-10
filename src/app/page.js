@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Building2, ChartNoAxesColumn, FileText, ShieldCheck, Users } from "lucide-react";
-import { defaultAssessmentSections, organizationTypes, sectorOptions } from "@/data/assessmentFramework";
+import { defaultAssessmentSections, sectorOptions } from "@/data/assessmentFramework";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 const featureCards = [
   {
     title: "Built for real organizations",
-    description: "Supports both for-profit and non-profit contexts with language that matches how each organization creates value.",
+    description: "Captures sector, tools, maturity gaps, comments, and operating context before recommendations are generated.",
     icon: Building2,
   },
   {
@@ -46,8 +46,7 @@ export default function HomePage() {
                   I2E Consulting helps organizations assess AI readiness with clarity and credibility.
                 </h1>
                 <p className="max-w-3xl text-lg leading-8 text-slate-600">
-                  A branded advisory platform for commercial and mission-driven organizations to understand readiness, surface priorities,
-                  and move toward a practical AI roadmap.
+                  A branded advisory platform for organizations to understand readiness, surface priorities, and move toward a practical AI roadmap.
                 </p>
               </div>
 
@@ -65,7 +64,7 @@ export default function HomePage() {
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <Stat value="8" label="Assessment dimensions" />
-                <Stat value="2" label="Org models supported" />
+                <Stat value="4" label="Starting sectors" />
                 <Stat value="1" label="Executive-ready report flow" />
               </div>
             </div>
@@ -81,13 +80,11 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-3">
-                {organizationTypes.map((item) => (
-                  <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <div className="font-semibold text-slate-950">{item.label}</div>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">{item.description}</p>
-                  </div>
-                ))}
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="font-semibold text-slate-950">Current-to-target maturity view</div>
+                <p className="mt-1 text-sm leading-6 text-slate-600">
+                  Each response captures today’s maturity, target maturity, and respondent comments so the report can prioritize the real gap.
+                </p>
               </div>
             </div>
           </section>
@@ -123,7 +120,7 @@ export default function HomePage() {
           <section className="mt-20 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-8 shadow-sm">
               <div className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Assessment framework</div>
-              <h2 className="font-heading mt-2 text-3xl font-semibold tracking-tight text-slate-950">Expanded dimensions that work across organization types</h2>
+              <h2 className="font-heading mt-2 text-3xl font-semibold tracking-tight text-slate-950">Expanded dimensions for a practical AI readiness baseline</h2>
               <div className="mt-8 grid gap-4 md:grid-cols-2">
                 {defaultAssessmentSections.map((section) => (
                   <div key={section.key} className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-5">

@@ -1,5 +1,5 @@
 import { getPrismaClient } from "@/lib/prisma";
-import { defaultAssessmentSections } from "@/data/assessmentFramework";
+import { defaultAssessmentSections, defaultScoreLabels } from "@/data/assessmentFramework";
 
 export function hasFrameworkDelegates(prisma) {
   return Boolean(prisma?.assessmentSection && prisma?.assessmentQuestion);
@@ -14,6 +14,7 @@ function mapQuestion(question) {
     helperText: question.helperText || "",
     why: question.whyItMatters || "",
     whyItMatters: question.whyItMatters || "",
+    scoreLabels: question.scoreLabels || defaultScoreLabels,
     weight: question.weight,
     sortOrder: question.sortOrder,
     isActive: question.isActive,
@@ -55,6 +56,7 @@ function mapDefaultFramework() {
       helperText: question.helperText || "",
       why: question.whyItMatters || "",
       whyItMatters: question.whyItMatters || "",
+      scoreLabels: question.scoreLabels || defaultScoreLabels,
       weight: question.weight,
       sortOrder: question.sortOrder,
       isActive: true,
@@ -65,6 +67,18 @@ function mapDefaultFramework() {
 async function countSectionsRaw(prisma) {
   const rows = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::int AS count FROM "AssessmentSection"`);
   return rows[0]?.count ?? 0;
+}
+
+async function ensureScoreLabelsColumn(prisma) {
+  await prisma.$executeRawUnsafe(`ALTER TABLE "AssessmentQuestion" ADD COLUMN IF NOT EXISTS "scoreLabels" JSONB`);
+  await prisma.$executeRawUnsafe(
+    `
+      UPDATE "AssessmentQuestion"
+      SET "scoreLabels" = $1::jsonb
+      WHERE "scoreLabels" IS NULL
+    `,
+    JSON.stringify(defaultScoreLabels)
+  );
 }
 
 async function getSectionsWithQuestionsRaw(prisma, activeOnly = false) {
@@ -110,19 +124,21 @@ async function seedDefaultFrameworkRaw(prisma) {
             "prompt",
             "helperText",
             "whyItMatters",
+            "scoreLabels",
             "weight",
             "sortOrder",
             "isActive",
             "createdAt",
             "updatedAt"
           )
-          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, true, NOW(), NOW())
+          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6::jsonb, $7, $8, true, NOW(), NOW())
         `,
         question.key,
         insertedSection.id,
         question.prompt,
         question.helperText || null,
         question.whyItMatters || null,
+        JSON.stringify(question.scoreLabels || defaultScoreLabels),
         Number(question.weight),
         Number(question.sortOrder)
       );
@@ -138,6 +154,7 @@ export async function ensureDefaultAssessmentFramework() {
   if (!hasFrameworkDelegates(prisma)) {
     try {
       const existingCount = await countSectionsRaw(prisma);
+      await ensureScoreLabelsColumn(prisma);
 
       if (existingCount === 0) {
         await seedDefaultFrameworkRaw(prisma);
@@ -151,6 +168,7 @@ export async function ensureDefaultAssessmentFramework() {
   }
 
   const existingCount = await prisma.assessmentSection.count();
+  await ensureScoreLabelsColumn(prisma);
 
   if (existingCount > 0) {
     return { available: true, mode: "delegate" };
@@ -170,6 +188,7 @@ export async function ensureDefaultAssessmentFramework() {
             prompt: question.prompt,
             helperText: question.helperText || null,
             whyItMatters: question.whyItMatters || null,
+            scoreLabels: question.scoreLabels || defaultScoreLabels,
             weight: question.weight,
             sortOrder: question.sortOrder,
           })),

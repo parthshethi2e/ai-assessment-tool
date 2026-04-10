@@ -10,9 +10,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { defaultScoreLabels } from "@/data/assessmentFramework";
 
 function parseAnswers(report) {
   return typeof report.answers === "string" ? JSON.parse(report.answers) : report.answers;
+}
+
+function normalizeScoreLabelDraft(labels) {
+  return {
+    1: labels?.[1] || labels?.["1"] || defaultScoreLabels[1],
+    2: labels?.[2] || labels?.["2"] || defaultScoreLabels[2],
+    3: labels?.[3] || labels?.["3"] || defaultScoreLabels[3],
+    4: labels?.[4] || labels?.["4"] || defaultScoreLabels[4],
+    5: labels?.[5] || labels?.["5"] || defaultScoreLabels[5],
+  };
 }
 
 export default function AdminDashboard({ initialSections, overview, adminEmail, initialSettings }) {
@@ -206,7 +217,7 @@ export default function AdminDashboard({ initialSections, overview, adminEmail, 
           : section
       )
     );
-    setDraftQuestions((current) => ({ ...current, [sectionId]: { prompt: "", whyItMatters: "", weight: 1 } }));
+    setDraftQuestions((current) => ({ ...current, [sectionId]: { prompt: "", whyItMatters: "", weight: 1, scoreLabels: defaultScoreLabels } }));
     setMessage("Question created.");
     router.refresh();
   };
@@ -425,11 +436,14 @@ export default function AdminDashboard({ initialSections, overview, adminEmail, 
               <SectionEditor
                 key={section.dbId || section.id}
                 section={section}
-                draftQuestion={draftQuestions[section.dbId || section.id] || { prompt: "", whyItMatters: "", weight: 1 }}
+                draftQuestion={draftQuestions[section.dbId || section.id] || { prompt: "", whyItMatters: "", weight: 1, scoreLabels: defaultScoreLabels }}
                 setDraftQuestion={(patch) =>
                   setDraftQuestions((current) => ({
                     ...current,
-                    [section.dbId || section.id]: { ...(current[section.dbId || section.id] || { prompt: "", whyItMatters: "", weight: 1 }), ...patch },
+                    [section.dbId || section.id]: {
+                      ...(current[section.dbId || section.id] || { prompt: "", whyItMatters: "", weight: 1, scoreLabels: defaultScoreLabels }),
+                      ...patch,
+                    },
                   }))
                 }
                 onSaveSection={updateSection}
@@ -519,6 +533,13 @@ function SectionEditor({
 
     if (!draftQuestion.weight || Number(draftQuestion.weight) <= 0) {
       nextErrors.weight = "Weight must be greater than 0.";
+    }
+
+    const scoreLabels = normalizeScoreLabelDraft(draftQuestion.scoreLabels);
+    for (const value of [1, 2, 3, 4, 5]) {
+      if (!scoreLabels[value]?.trim()) {
+        nextErrors[`scoreLabel${value}`] = `Label for score ${value} is required.`;
+      }
     }
 
     setQuestionErrors(nextErrors);
@@ -680,6 +701,19 @@ function SectionEditor({
                   <Input value={draftQuestion.helperText || ""} onChange={(event) => setDraftQuestion({ helperText: event.target.value })} />
                 </Field>
               </div>
+              <ScoreLabelFields
+                labels={normalizeScoreLabelDraft(draftQuestion.scoreLabels)}
+                errors={questionErrors}
+                onChange={(value, label) => {
+                  setDraftQuestion({
+                    scoreLabels: {
+                      ...normalizeScoreLabelDraft(draftQuestion.scoreLabels),
+                      [value]: label,
+                    },
+                  });
+                  setQuestionErrors((current) => ({ ...current, [`scoreLabel${value}`]: "" }));
+                }}
+              />
               <Button
                 className="rounded-full"
                 onClick={() => {
@@ -707,6 +741,7 @@ function QuestionEditor({ question, onSave, onDelete }) {
     weight: question.weight,
     sortOrder: question.sortOrder,
     isActive: question.isActive ?? true,
+    scoreLabels: normalizeScoreLabelDraft(question.scoreLabels),
   });
 
   const validateQuestion = () => {
@@ -726,6 +761,12 @@ function QuestionEditor({ question, onSave, onDelete }) {
 
     if (!draft.sortOrder || Number(draft.sortOrder) <= 0) {
       nextErrors.sortOrder = "Sort order must be greater than 0.";
+    }
+
+    for (const value of [1, 2, 3, 4, 5]) {
+      if (!draft.scoreLabels[value]?.trim()) {
+        nextErrors[`scoreLabel${value}`] = `Label for score ${value} is required.`;
+      }
     }
 
     setErrors(nextErrors);
@@ -795,6 +836,20 @@ function QuestionEditor({ question, onSave, onDelete }) {
           />
           Active in live survey
         </label>
+        <ScoreLabelFields
+          labels={draft.scoreLabels}
+          errors={errors}
+          onChange={(value, label) => {
+            setDraft((current) => ({
+              ...current,
+              scoreLabels: {
+                ...current.scoreLabels,
+                [value]: label,
+              },
+            }));
+            setErrors((current) => ({ ...current, [`scoreLabel${value}`]: "" }));
+          }}
+        />
         <div className="flex flex-wrap justify-between gap-3">
           <Button variant="ghost" className="rounded-full text-rose-600 hover:text-rose-700" onClick={() => onDelete(question.dbId || question.id)}>
             <Trash2 className="size-4" />
@@ -810,6 +865,29 @@ function QuestionEditor({ question, onSave, onDelete }) {
             Save question
           </Button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ScoreLabelFields({ labels, errors, onChange }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+      <div className="text-sm font-semibold text-slate-950">Answer labels for scores 1-5</div>
+      <p className="mt-1 text-xs leading-5 text-slate-500">
+        Defaults are applied automatically, but each question can use its own maturity wording.
+      </p>
+      <div className="mt-4 grid gap-3 md:grid-cols-5">
+        {[1, 2, 3, 4, 5].map((value) => (
+          <Field key={value} label={`${value}`}>
+            <Input
+              aria-invalid={Boolean(errors?.[`scoreLabel${value}`])}
+              value={labels[value]}
+              onChange={(event) => onChange(value, event.target.value)}
+            />
+            <FieldError message={errors?.[`scoreLabel${value}`]} />
+          </Field>
+        ))}
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { getPrismaClient } from "@/lib/prisma";
 import { logAuditEvent } from "@/lib/auditLog";
 import { requireAdminApiSession } from "@/lib/adminAuth";
 import { ensureDefaultAssessmentFramework, hasFrameworkDelegates } from "@/lib/assessmentRepository";
+import { defaultScoreLabels } from "@/data/assessmentFramework";
 
 function slugify(value) {
   return value
@@ -21,10 +22,44 @@ function snapshotQuestion(question) {
     prompt: question.prompt,
     helperText: question.helperText,
     whyItMatters: question.whyItMatters,
+    scoreLabels: question.scoreLabels || defaultScoreLabels,
     weight: Number(question.weight),
     sortOrder: Number(question.sortOrder),
     isActive: Boolean(question.isActive),
   };
+}
+
+function normalizeScoreLabels(labels) {
+  const next = {};
+
+  for (const value of [1, 2, 3, 4, 5]) {
+    const label = String(labels?.[value] || labels?.[String(value)] || defaultScoreLabels[value] || "").trim();
+
+    if (!label) {
+      return null;
+    }
+
+    next[value] = label;
+  }
+
+  return next;
+}
+
+function questionDelegateSupportsScoreLabels(prisma) {
+  const questionFields = prisma?._runtimeDataModel?.models?.AssessmentQuestion?.fields || [];
+  return questionFields.some((field) => field.name === "scoreLabels");
+}
+
+async function ensureScoreLabelsColumn(prisma) {
+  await prisma.$executeRawUnsafe(`ALTER TABLE "AssessmentQuestion" ADD COLUMN IF NOT EXISTS "scoreLabels" JSONB`);
+  await prisma.$executeRawUnsafe(
+    `
+      UPDATE "AssessmentQuestion"
+      SET "scoreLabels" = $1::jsonb
+      WHERE "scoreLabels" IS NULL
+    `,
+    JSON.stringify(defaultScoreLabels)
+  );
 }
 
 export async function POST(request) {
@@ -32,6 +67,7 @@ export async function POST(request) {
     const auth = await requireAdminApiSession(request);
     if (!auth.ok) return auth.response;
     const prisma = getPrismaClient();
+    await ensureScoreLabelsColumn(prisma);
     await ensureDefaultAssessmentFramework();
     const body = await request.json();
     const prompt = body.prompt?.trim();
@@ -39,6 +75,7 @@ export async function POST(request) {
     const helperText = body.helperText?.trim() || null;
     const weight = Number(body.weight || 1);
     const sortOrder = body.sortOrder == null ? null : Number(body.sortOrder);
+    const scoreLabels = normalizeScoreLabels(body.scoreLabels);
     let section = null;
 
     if (!body.sectionId || !prompt) {
@@ -57,9 +94,13 @@ export async function POST(request) {
       return Response.json({ error: "Sort order must be greater than 0." }, { status: 400 });
     }
 
+    if (!scoreLabels) {
+      return Response.json({ error: "Labels for scores 1-5 are required." }, { status: 400 });
+    }
+
     let question;
 
-    if (hasFrameworkDelegates(prisma)) {
+    if (hasFrameworkDelegates(prisma) && questionDelegateSupportsScoreLabels(prisma)) {
       section = await prisma.assessmentSection.findFirst({
         where: {
           OR: [{ id: body.sectionId }, { key: body.sectionId }],
@@ -81,6 +122,7 @@ export async function POST(request) {
           prompt,
           helperText,
           whyItMatters,
+          scoreLabels,
           weight,
           sortOrder: sortOrder || count + 1,
           isActive: body.isActive ?? true,
@@ -111,13 +153,14 @@ export async function POST(request) {
             "prompt",
             "helperText",
             "whyItMatters",
+            "scoreLabels",
             "weight",
             "sortOrder",
             "isActive",
             "createdAt",
             "updatedAt"
           )
-          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, NOW(), NOW())
           RETURNING *
         `,
         body.key?.trim() || slugify(prompt),
@@ -125,6 +168,7 @@ export async function POST(request) {
         prompt,
         helperText,
         whyItMatters,
+        JSON.stringify(scoreLabels),
         weight,
         sortOrder || count + 1,
         body.isActive ?? true

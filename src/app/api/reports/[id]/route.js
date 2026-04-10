@@ -175,7 +175,7 @@ export async function GET(_request, { params }) {
           <div class="label">I2E Consulting report</div>
           <h1 style="margin-top:10px;font-size:34px;">${escapeHtml(profile.organizationName || "Organization report")}</h1>
           <p class="muted" style="margin-top:10px;font-size:14px;line-height:1.7;">
-            ${escapeHtml(profile.organizationType || "Organization")} • ${escapeHtml(profile.sector || "Sector not provided")} • ${escapeHtml(profile.sizeBand || "Size not provided")}
+            ${escapeHtml(profile.sector || "Sector not provided")} • ${escapeHtml(profile.sizeBand || "Size not provided")}
           </p>
         </div>
 

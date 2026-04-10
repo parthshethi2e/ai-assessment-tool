@@ -1,29 +1,16 @@
-export const organizationTypes = [
-  {
-    id: "for-profit",
-    label: "For-profit",
-    description: "Commercial organizations focused on growth, margin, customer value, and competitive advantage.",
-  },
-  {
-    id: "non-profit",
-    label: "Non-profit",
-    description: "Mission-led organizations balancing impact, donor accountability, program delivery, and capacity.",
-  },
-];
+export const defaultScoreLabels = {
+  1: "Not in place",
+  2: "Exploring",
+  3: "Emerging",
+  4: "Operational",
+  5: "Leading",
+};
 
 export const sectorOptions = [
-  "Technology",
+  "Pharma",
+  "Publishing",
   "Healthcare",
-  "Education",
-  "Financial Services",
-  "Retail",
-  "Manufacturing",
-  "Professional Services",
-  "Government / Public Sector",
-  "NGO / Charity",
-  "Foundation / Philanthropy",
-  "Social Impact",
-  "Other",
+  "Biotech",
 ];
 
 export const sizeBands = ["1-25", "26-100", "101-500", "501-2000", "2000+"];
@@ -58,7 +45,7 @@ export const priorityOptions = [
   "Workforce enablement",
 ];
 
-export const scoreLabels = ["Not in place", "Exploring", "Emerging", "Operational", "Leading"];
+export const scoreLabels = Object.values(defaultScoreLabels);
 
 export const defaultAssessmentSections = [
   {

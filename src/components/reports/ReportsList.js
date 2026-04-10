@@ -90,7 +90,7 @@ export default function ReportsList({ initialReports, canManage = false }) {
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-800">
-                      {profile.organizationType || "organization"}
+                      {profile.sector || "sector not provided"}
                     </span>
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
