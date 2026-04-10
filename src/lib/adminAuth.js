@@ -3,8 +3,6 @@ import { redirect } from "next/navigation";
 import crypto from "node:crypto";
 import { getPrismaClient } from "@/lib/prisma";
 
-export const ADMIN_EMAIL = "admin@i2econsulting.com";
-const ADMIN_PASSWORD = "Admin@123";
 const SESSION_COOKIE = "admin_session";
 const SESSION_TIMEOUT_MINUTES = 60;
 
@@ -16,7 +14,7 @@ function hashValue(value) {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
-function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+export function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   const derived = crypto.scryptSync(password, salt, 64).toString("hex");
   return `${salt}:${derived}`;
 }
@@ -29,6 +27,10 @@ function verifyPassword(password, storedHash) {
   }
 
   const attemptHash = crypto.scryptSync(password, salt, 64).toString("hex");
+  if (attemptHash.length !== originalHash.length) {
+    return false;
+  }
+
   return crypto.timingSafeEqual(Buffer.from(originalHash, "hex"), Buffer.from(attemptHash, "hex"));
 }
 
@@ -44,69 +46,8 @@ function getTimeoutSeconds() {
   return SESSION_TIMEOUT_MINUTES * 60;
 }
 
-async function ensureAdminUser() {
-  const prisma = getPrismaClient();
-  const passwordHash = hashPassword(ADMIN_PASSWORD);
-
-  if (hasAdminDelegates(prisma)) {
-    const user = await prisma.adminUser.findUnique({
-      where: { email: ADMIN_EMAIL },
-    });
-
-    if (!user) {
-      return prisma.adminUser.create({
-        data: {
-          email: ADMIN_EMAIL,
-          passwordHash,
-          isActive: true,
-        },
-      });
-    }
-
-    return prisma.adminUser.update({
-      where: { id: user.id },
-      data: {
-        passwordHash,
-        isActive: true,
-      },
-    });
-  }
-
-  const existingRows = await prisma.$queryRawUnsafe(`SELECT * FROM "AdminUser" WHERE "email" = $1 LIMIT 1`, ADMIN_EMAIL);
-  const existing = existingRows[0];
-
-  if (!existing) {
-    const insertedRows = await prisma.$queryRawUnsafe(
-      `
-        INSERT INTO "AdminUser" ("id", "email", "passwordHash", "isActive", "createdAt", "updatedAt")
-        VALUES ($1, $2, $3, true, NOW(), NOW())
-        RETURNING *
-      `,
-      crypto.randomUUID(),
-      ADMIN_EMAIL,
-      passwordHash
-    );
-    return insertedRows[0];
-  }
-
-  const updatedRows = await prisma.$queryRawUnsafe(
-    `
-      UPDATE "AdminUser"
-      SET "passwordHash" = $2,
-          "isActive" = true,
-          "updatedAt" = NOW()
-      WHERE "id" = $1
-      RETURNING *
-    `,
-    existing.id,
-    passwordHash
-  );
-  return updatedRows[0];
-}
-
 export async function authenticateAdmin(email, password) {
   const prisma = getPrismaClient();
-  await ensureAdminUser();
   const normalizedEmail = String(email || "").trim().toLowerCase();
   let user;
 

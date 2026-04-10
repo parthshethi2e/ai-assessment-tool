@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LockKeyhole, Shield } from "lucide-react";
+import { ArrowLeft, Home, LockKeyhole, Shield } from "lucide-react";
 import BrandBadge from "@/components/BrandBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,8 +11,8 @@ import { Input } from "@/components/ui/input";
 
 export default function AdminLoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@i2econsulting.com");
-  const [password, setPassword] = useState("Admin@123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [status, setStatus] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
@@ -69,19 +70,34 @@ export default function AdminLoginForm() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(8,145,178,0.12),transparent_30%),linear-gradient(180deg,#f8fbff_0%,#edf3f7_100%)]">
-      <div className="mx-auto flex min-h-screen max-w-6xl items-center px-6 py-12 lg:px-8">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-5 lg:px-8">
+        <Link href="/" className="transition hover:opacity-90">
+          <BrandBadge subtitle={null} size="large" />
+        </Link>
+        <Button asChild variant="outline" className="h-11 rounded-full border-slate-200 bg-white px-5 text-slate-800 shadow-sm">
+          <Link href="/">
+            <ArrowLeft className="size-4" />
+            Main page
+          </Link>
+        </Button>
+      </div>
+
+      <div className="mx-auto flex min-h-[calc(100vh-92px)] max-w-6xl items-center px-6 py-10 lg:px-8">
         <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center">
           <div className="space-y-6">
-            <BrandBadge subtitle="Secure administration portal" />
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-900">
-              <Shield className="size-4" />
-              Protected admin access
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-white px-4 py-2 text-sm font-medium text-cyan-900 shadow-sm">
+              <Home className="size-4" />
+              I2E Consulting control area
             </div>
             <div className="space-y-4">
               <h1 className="font-heading text-5xl font-semibold tracking-tight text-slate-950">I2E Consulting admin login</h1>
               <p className="max-w-2xl text-base leading-7 text-slate-600">
                 Sign in to manage the I2E Consulting assessment framework, edit sections and questions, and review reporting activity. Sessions automatically time out after inactivity.
               </p>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 text-sm text-slate-600 shadow-sm">
+              <Shield className="size-4 text-cyan-700" />
+              Database-backed admin access with secure session timeout.
             </div>
           </div>
 
@@ -91,7 +107,7 @@ export default function AdminLoginForm() {
                 <LockKeyhole className="size-5 text-cyan-700" />
                 Admin sign in
               </CardTitle>
-              <CardDescription>Use the configured credentials to access the I2E Consulting control center.</CardDescription>
+              <CardDescription>Use your active admin account from the database to access the I2E Consulting control center.</CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmit}>

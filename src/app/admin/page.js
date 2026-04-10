@@ -21,7 +21,7 @@ export default async function AdminPage() {
     <AdminDashboard
       initialSections={sections}
       overview={overview}
-      adminEmail={session.adminUser.email}
+      adminUser={session.adminUser}
       initialSettings={settings}
     />
   );

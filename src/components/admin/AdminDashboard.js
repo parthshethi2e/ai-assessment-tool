@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, ChevronDown, FilePlus2, FolderPlus, Pencil, Settings2, Trash2 } from "lucide-react";
+import { BarChart3, ChevronDown, ClipboardList, FilePlus2, FolderPlus, Pencil, Settings2, ShieldCheck, Trash2, UserRound } from "lucide-react";
 import AdminLogoutButton from "@/components/admin/AdminLogoutButton";
 import BrandBadge from "@/components/BrandBadge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,15 @@ function normalizeScoreLabelDraft(labels) {
   };
 }
 
-export default function AdminDashboard({ initialSections, overview, adminEmail, initialSettings }) {
+function getAdminDisplayName(adminUser) {
+  return [adminUser?.firstName, adminUser?.lastName].filter(Boolean).join(" ") || adminUser?.email || "Admin";
+}
+
+function canViewAuditLogs(adminUser) {
+  return String(adminUser?.email || "").toLowerCase() === "admin@i2econsulting.com" || adminUser?.role === "super_admin";
+}
+
+export default function AdminDashboard({ initialSections, overview, adminUser, initialSettings }) {
   const router = useRouter();
   const [sections, setSections] = useState(initialSections);
   const [status, setStatus] = useState("");
@@ -277,30 +285,46 @@ export default function AdminDashboard({ initialSections, overview, adminEmail, 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#edf3f7_100%)]">
       <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <BrandBadge subtitle="Assessment administration" />
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Admin module</p>
-            <h1 className="font-heading mt-2 text-4xl font-semibold tracking-tight text-slate-950">I2E Consulting control center</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              Manage the live assessment framework, review reporting activity, and keep the I2E Consulting question library aligned with how you want the product to behave.
-            </p>
+        <div className="mb-8 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)]">
+          <div className="relative bg-slate-950 px-6 py-7 text-white lg:px-8">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.28),transparent_24%),radial-gradient(circle_at_88%_12%,rgba(38,153,245,0.22),transparent_22%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.055)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.055)_1px,transparent_1px)] bg-[size:54px_54px] opacity-70" />
+            <div className="relative flex flex-wrap items-start justify-between gap-6">
+              <div className="max-w-3xl">
+                <BrandBadge dark subtitle="Assessment administration" />
+                <p className="mt-6 text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">Admin module</p>
+                <h1 className="font-heading mt-3 text-4xl font-semibold tracking-tight text-white lg:text-5xl">I2E Consulting control center</h1>
+                <p className="mt-4 text-sm leading-6 text-slate-300">
+                  Manage the live assessment framework, review reporting activity, and keep the I2E Consulting question library aligned with how you want the product to behave.
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-white/10 px-5 py-4 shadow-2xl backdrop-blur">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-11 items-center justify-center rounded-2xl bg-cyan-300 text-slate-950">
+                    <UserRound className="size-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-white">{getAdminDisplayName(adminUser)}</div>
+                    <div className="mt-1 text-xs text-slate-300">{adminUser?.role === "super_admin" ? "Super admin access" : "Admin access"}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <div className="flex items-center rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600">
-              {adminEmail}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 lg:px-8">
+            <div className="flex flex-wrap gap-3">
+              <AdminActionLink href="/admin/profile" icon={ShieldCheck} label="Admin profile" />
+              <AdminActionLink href="/survey" icon={ClipboardList} label="Open live assessment" />
+              {canViewAuditLogs(adminUser) ? <AdminActionLink href="/admin/audit-logs" icon={BarChart3} label="Audit logs" /> : null}
             </div>
-            <AdminLogoutButton />
-            <Button asChild variant="outline" className="rounded-full">
-              <Link href="/survey">Open live assessment</Link>
-            </Button>
-            <Button asChild className="rounded-full">
-              <Link href="/reports">View reports</Link>
-            </Button>
-            <Button asChild variant="outline" className="rounded-full">
-              <Link href="/admin/audit-logs">Audit logs</Link>
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button asChild className="h-10 rounded-full px-5">
+                <Link href="/reports">View reports</Link>
+              </Button>
+              <AdminLogoutButton />
+            </div>
           </div>
         </div>
 
@@ -457,6 +481,17 @@ export default function AdminDashboard({ initialSections, overview, adminEmail, 
         </div>
       </div>
     </div>
+  );
+}
+
+function AdminActionLink({ href, icon: Icon, label }) {
+  return (
+    <Button asChild variant="outline" className="h-10 rounded-full border-slate-200 bg-slate-50 px-4 text-slate-700 hover:bg-white">
+      <Link href={href}>
+        <Icon className="size-4" />
+        {label}
+      </Link>
+    </Button>
   );
 }
 

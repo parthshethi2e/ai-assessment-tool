@@ -36,6 +36,7 @@ export async function POST(request) {
       entityId: auth.user.id,
       details: {
         email: auth.user.email,
+        name: [auth.user.firstName, auth.user.lastName].filter(Boolean).join(" ") || null,
         timeoutMinutes: 60,
         expiresAt: auth.expiresAt,
       },
@@ -45,6 +46,9 @@ export async function POST(request) {
       success: true,
       user: {
         email: auth.user.email,
+        firstName: auth.user.firstName || null,
+        lastName: auth.user.lastName || null,
+        designation: auth.user.designation || null,
       },
       expiresAt: auth.expiresAt,
       timeoutMinutes: 60,

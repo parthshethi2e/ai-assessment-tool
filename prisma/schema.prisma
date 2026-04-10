@@ -49,6 +49,13 @@ model AdminUser {
   id            String         @id @default(uuid())
   email         String         @unique
   passwordHash  String
+  firstName     String?
+  lastName      String?
+  mobileNumber  String?
+  designation   String?
+  department    String?
+  role          String         @default("admin")
+  notes         String?
   isActive      Boolean        @default(true)
   lastLoginAt   DateTime?
   createdAt     DateTime       @default(now())

@@ -86,25 +86,25 @@ function AuditLogRow({ entry }) {
 
   return (
     <tr className="align-top">
-      <td className="px-3 py-4 whitespace-nowrap text-slate-600">
+      <td className="px-5 py-4 whitespace-nowrap text-slate-600">
         <div>{new Date(entry.createdAt).toLocaleDateString()}</div>
         <div className="text-xs text-slate-400">{new Date(entry.createdAt).toLocaleTimeString()}</div>
       </td>
-      <td className="px-3 py-4 text-slate-700">
-        <div className="font-medium text-slate-950">{entry.actorEmail || "System"}</div>
+      <td className="px-5 py-4 text-slate-700">
+        <div className="break-words font-medium text-slate-950">{entry.actorEmail || "System"}</div>
         <div className="text-xs uppercase tracking-[0.14em] text-slate-400">{entry.actorType}</div>
       </td>
-      <td className="px-3 py-4 text-slate-700">
+      <td className="px-5 py-4 text-slate-700">
         <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{formatActionLabel(entry.action)}</span>
       </td>
-      <td className="px-3 py-4 text-slate-700">
+      <td className="px-5 py-4 text-slate-700">
         <div className="font-medium text-slate-950">{formatEntityLabel(entry.entityType)}</div>
         <div className="mt-1 break-all text-xs text-slate-400">{entry.entityId}</div>
       </td>
-      <td className="px-3 py-4 text-slate-700">
+      <td className="px-5 py-4 text-slate-700">
         <div className="space-y-1">
           {lines.map((line) => (
-            <div key={line} className="leading-6 text-slate-600">
+            <div key={line} className="break-words leading-6 text-slate-600">
               {line}
             </div>
           ))}
@@ -116,21 +116,28 @@ function AuditLogRow({ entry }) {
 
 export default function AdminAuditLogTable({ auditLogs, className = "" }) {
   return (
-    <Card className={`border border-slate-200/80 bg-white shadow-sm ${className}`.trim()}>
-      <CardHeader>
+    <Card className={`w-full border border-slate-200/80 bg-white shadow-sm ${className}`.trim()}>
+      <CardHeader className="border-b border-slate-100 bg-slate-50/60">
         <CardTitle>Audit log</CardTitle>
         <CardDescription>Tracks admin access, framework changes, settings updates, report actions, and assessment saves with field-level detail.</CardDescription>
       </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
+      <CardContent className="px-0">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full table-fixed divide-y divide-slate-200 text-sm">
+            <colgroup>
+              <col className="w-[12%]" />
+              <col className="w-[19%]" />
+              <col className="w-[17%]" />
+              <col className="w-[17%]" />
+              <col className="w-[35%]" />
+            </colgroup>
             <thead>
               <tr className="text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                <th className="px-3 py-3">Time</th>
-                <th className="px-3 py-3">Actor</th>
-                <th className="px-3 py-3">Action</th>
-                <th className="px-3 py-3">Entity</th>
-                <th className="px-3 py-3">Details</th>
+                <th className="px-5 py-3">Time</th>
+                <th className="px-5 py-3">Actor</th>
+                <th className="px-5 py-3">Action</th>
+                <th className="px-5 py-3">Entity</th>
+                <th className="px-5 py-3">Details</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -138,7 +145,7 @@ export default function AdminAuditLogTable({ auditLogs, className = "" }) {
                 auditLogs.map((entry) => <AuditLogRow key={entry.id} entry={entry} />)
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-sm text-slate-500">
+                  <td colSpan={5} className="px-5 py-6 text-center text-sm text-slate-500">
                     No audit activity captured yet.
                   </td>
                 </tr>
