@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, UserPlus } from "lucide-react";
+import { ArrowLeft, BarChart3, FileText, ShieldCheck, UserPlus, UserRound } from "lucide-react";
+import AdminLogoutButton from "@/components/admin/AdminLogoutButton";
 import BrandBadge from "@/components/BrandBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +37,10 @@ function toDraft(user) {
   };
 }
 
+function getAdminDisplayName(user) {
+  return [user?.firstName, user?.lastName].filter(Boolean).join(" ") || user?.email || "Admin";
+}
+
 export default function AdminProfileManager({ canManageAdmins, currentAdminId, initialUsers }) {
   const router = useRouter();
   const [users, setUsers] = useState(initialUsers);
@@ -45,6 +50,7 @@ export default function AdminProfileManager({ canManageAdmins, currentAdminId, i
   const [errors, setErrors] = useState({});
   const [savingId, setSavingId] = useState("");
   const [creating, setCreating] = useState(false);
+  const currentUser = users.find((user) => user.id === currentAdminId) || users[0];
 
   const setMessage = (message) => {
     setStatus(message);
@@ -147,27 +153,55 @@ export default function AdminProfileManager({ canManageAdmins, currentAdminId, i
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f8fbff_0%,#edf3f7_100%)]">
       <div className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <BrandBadge subtitle="Admin profile and access control" />
-            <p className="mt-5 text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">
-              {canManageAdmins ? "Admin users" : "Your profile"}
-            </p>
-            <h1 className="font-heading mt-2 text-4xl font-semibold tracking-tight text-slate-950">
-              {canManageAdmins ? "Manage admin access" : "Admin profile"}
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-              {canManageAdmins
-                ? "Admin login is verified against active users stored in the database. Use this page to maintain profile details and add more administrators later."
-                : "Your admin login is verified against the database. You can maintain your profile details here; admin user management is reserved for the super admin."}
-            </p>
+        <div className="mb-8 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.10)]">
+          <div className="relative bg-slate-950 px-6 py-7 text-white lg:px-8">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(34,211,238,0.28),transparent_24%),radial-gradient(circle_at_88%_12%,rgba(38,153,245,0.22),transparent_22%)]" />
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.055)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.055)_1px,transparent_1px)] bg-[size:54px_54px] opacity-70" />
+            <div className="relative flex flex-wrap items-start justify-between gap-6">
+              <div className="max-w-3xl">
+                <BrandBadge dark subtitle="Admin profile and access control" />
+                <p className="mt-6 text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">
+                  {canManageAdmins ? "Admin users" : "Your profile"}
+                </p>
+                <h1 className="font-heading mt-3 text-4xl font-semibold tracking-tight text-white lg:text-5xl">
+                  {canManageAdmins ? "Manage admin access" : "Admin profile"}
+                </h1>
+                <p className="mt-4 text-sm leading-6 text-slate-300">
+                  {canManageAdmins
+                    ? "Admin login is verified against active users stored in the database. Maintain profile details and add more administrators from one controlled workspace."
+                    : "Your admin login is verified against the database. You can maintain your profile details here; admin user management is reserved for the super admin."}
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-white/10 px-5 py-4 shadow-2xl backdrop-blur">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-11 items-center justify-center rounded-2xl bg-cyan-300 text-slate-950">
+                    <UserRound className="size-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-white">{getAdminDisplayName(currentUser)}</div>
+                    <div className="mt-1 text-xs text-slate-300">{canManageAdmins ? "Super admin access" : "Admin access"}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <Button asChild variant="outline" className="rounded-full">
-            <Link href="/admin">
-              <ArrowLeft className="size-4" />
-              Back to admin
-            </Link>
-          </Button>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 lg:px-8">
+            <div className="flex flex-wrap gap-3">
+              <AdminActionLink href="/admin" icon={ArrowLeft} label="Back to admin" />
+              {canManageAdmins ? <AdminActionLink href="/admin/audit-logs" icon={BarChart3} label="Audit logs" /> : null}
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button asChild className="h-10 rounded-full px-5">
+                <Link href="/reports">
+                  <FileText className="size-4" />
+                  View reports
+                </Link>
+              </Button>
+              <AdminLogoutButton />
+            </div>
+          </div>
         </div>
 
         {status ? <div className="mb-6 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">{status}</div> : null}
@@ -313,6 +347,17 @@ export default function AdminProfileManager({ canManageAdmins, currentAdminId, i
         </div>
       </div>
     </div>
+  );
+}
+
+function AdminActionLink({ href, icon: Icon, label }) {
+  return (
+    <Button asChild variant="outline" className="h-10 rounded-full border-slate-200 bg-slate-50 px-4 text-slate-700 hover:bg-white">
+      <Link href={href}>
+        <Icon className="size-4" />
+        {label}
+      </Link>
+    </Button>
   );
 }
 
