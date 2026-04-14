@@ -15,12 +15,8 @@ export async function POST(request) {
       return Response.json({ error: "A valid organization name is required." }, { status: 400 });
     }
 
-    if (!profile.sector || !profile.sizeBand || !profile.annualBudgetBand || !profile.respondentRole) {
+    if (!profile.sector || !profile.sizeBand || !profile.respondentRole) {
       return Response.json({ error: "Complete the organization profile before saving." }, { status: 400 });
-    }
-
-    if (!profile.currentTools?.trim()) {
-      return Response.json({ error: "Current tools are required." }, { status: 400 });
     }
 
     if (!notes.priority || !notes.timeline) {

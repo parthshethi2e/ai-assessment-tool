@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { BarChart3, ChevronDown, ClipboardList, FilePlus2, FolderPlus, Pencil, Settings2, ShieldCheck, Trash2, UserRound } from "lucide-react";
 import AdminLogoutButton from "@/components/admin/AdminLogoutButton";
 import BrandBadge from "@/components/BrandBadge";
+import { assessmentAnalysisPromptTemplate } from "@/lib/analysisPrompt";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -381,6 +382,19 @@ export default function AdminDashboard({ initialSections, overview, adminUser, i
                     {settings?.reportGenerationEnabled ? "Enabled during assessment creation" : "Disabled during assessment creation"}
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border border-slate-200/80 bg-white shadow-sm">
+              <CardHeader>
+                <CardTitle>AI generation prompt</CardTitle>
+                <CardDescription>Admin reference for the prompt template used when AI report generation is enabled.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
+                  Model: <span className="font-medium text-slate-950">gpt-4o-mini</span>
+                </div>
+                <Textarea readOnly value={assessmentAnalysisPromptTemplate} className="min-h-[22rem] font-mono text-xs leading-6" />
               </CardContent>
             </Card>
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ArrowRight, Building2, ChartNoAxesColumn, FileText, ShieldCheck, Users } from "lucide-react";
-import { defaultAssessmentSections, sectorOptions } from "@/data/assessmentFramework";
+import { ArrowRight, Building2, ChartNoAxesColumn, FileText, ShieldCheck } from "lucide-react";
+import { sectorOptions } from "@/data/assessmentFramework";
 import SiteFooter from "@/components/SiteFooter";
 import SiteHeader from "@/components/SiteHeader";
 import { Button } from "@/components/ui/button";
@@ -20,11 +20,6 @@ const featureCards = [
     title: "AI with governance in view",
     description: "Balances opportunity spotting with policy, privacy, and operating-model readiness.",
     icon: ShieldCheck,
-  },
-  {
-    title: "Designed for transformation teams",
-    description: "Useful for leadership, operations, technology, program, and data stakeholders working together.",
-    icon: Users,
   },
 ];
 
@@ -64,8 +59,8 @@ export default function HomePage() {
 
               <div className="grid gap-5 sm:grid-cols-3">
                 <Stat value="8" label="Assessment dimensions" />
-                <Stat value="4" label="Starting sectors" />
-                <Stat value="1" label="Executive-ready report flow" />
+                <Stat value="4" label="Supported sectors" />
+                <Stat value="1" label="Advisory report flow" />
               </div>
             </div>
 
@@ -93,14 +88,14 @@ export default function HomePage() {
             <div className="mb-8 flex flex-wrap items-end justify-between gap-6">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Core capabilities</div>
-                <h2 className="font-heading mt-2 text-3xl font-semibold tracking-tight text-slate-950">What makes this feel more like a professional tool</h2>
+                <h2 className="font-heading mt-2 text-3xl font-semibold tracking-tight text-slate-950">A simpler path from assessment to action</h2>
               </div>
               <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                The rebuild focuses on breadth of assessment, stronger reporting, and a more credible product experience for advisory or internal transformation use.
+                The experience is designed to stay easy to follow: capture context, assess readiness, review completion, and generate an executive-ready report.
               </p>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-5 md:grid-cols-3">
               {featureCards.map((item) => {
                 const Icon = item.icon;
 
@@ -119,40 +114,25 @@ export default function HomePage() {
 
           <section className="mt-20 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-8 shadow-sm">
-              <div className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Assessment framework</div>
-              <h2 className="font-heading mt-2 text-3xl font-semibold tracking-tight text-slate-950">Expanded dimensions for a practical AI readiness baseline</h2>
-              <div className="mt-8 grid gap-4 md:grid-cols-2">
-                {defaultAssessmentSections.map((section) => (
-                  <div key={section.key} className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-5">
-                    <div className="text-base font-semibold text-slate-950">{section.title}</div>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{section.description}</p>
-                  </div>
+              <div className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Coverage</div>
+              <h2 className="font-heading mt-2 text-3xl font-semibold tracking-tight text-slate-950">Starting sectors supported in the model</h2>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {sectorOptions.slice(0, 10).map((sector) => (
+                  <span key={sector} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700">
+                    {sector}
+                  </span>
                 ))}
               </div>
             </div>
 
-            <div className="space-y-6">
-              <div className="rounded-[2rem] border border-slate-200/80 bg-white/85 p-6 shadow-sm">
-                <div className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Coverage</div>
-                <h3 className="mt-2 text-xl font-semibold text-slate-950">Sectors supported in the model</h3>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {sectorOptions.slice(0, 10).map((sector) => (
-                    <span key={sector} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700">
-                      {sector}
-                    </span>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-[2rem] border border-slate-200/80 bg-slate-950 p-6 text-white shadow-sm">
-                <h3 className="text-xl font-semibold">Next step</h3>
-                <p className="mt-3 text-sm leading-6 text-white/70">
-                  Start a new assessment, generate the report, and we can keep iterating from a much stronger foundation.
-                </p>
-                <Button asChild size="lg" className="mt-6 h-11 rounded-full bg-cyan-400 px-6 text-slate-950 hover:bg-cyan-300">
-                  <Link href="/survey">Open assessment workspace</Link>
-                </Button>
-              </div>
+            <div className="rounded-[2rem] border border-slate-200/80 bg-slate-950 p-6 text-white shadow-sm">
+              <h3 className="text-xl font-semibold">Next step</h3>
+              <p className="mt-3 text-sm leading-6 text-white/70">
+                Launch the workspace, complete the assessment, review unanswered items, and then generate the report.
+              </p>
+              <Button asChild size="lg" className="mt-6 h-11 rounded-full bg-cyan-400 px-6 text-slate-950 hover:bg-cyan-300">
+                <Link href="/survey">Open assessment workspace</Link>
+              </Button>
             </div>
           </section>
         </main>

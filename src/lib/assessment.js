@@ -69,7 +69,7 @@ export function getResponseRecord(response) {
 export function isResolvedResponse(response) {
   const record = getResponseRecord(response);
   if (record.mode === "score") {
-    return typeof record.score === "number" && typeof record.targetScore === "number";
+    return typeof record.score === "number";
   }
 
   return Boolean(record.mode);
@@ -184,10 +184,9 @@ export function calculateAssessment(draft, sections = []) {
         targetScore: response.targetScore,
         targetScoreLabel: response.targetScore ? question.scoreLabels?.[response.targetScore] || "" : "",
         scoreLabels: question.scoreLabels || null,
-        gap:
-          response.mode === "score" && typeof response.score === "number" && typeof response.targetScore === "number"
-            ? Number((response.targetScore - response.score).toFixed(2))
-            : null,
+        gap: response.mode === "score" && typeof response.score === "number" && typeof response.targetScore === "number"
+          ? Number((response.targetScore - response.score).toFixed(2))
+          : null,
         comment: response.comment,
       });
     }
@@ -215,7 +214,10 @@ export function calculateAssessment(draft, sections = []) {
   const weightedTotal = scoredSections.reduce((sum, section) => sum + section.score * section.weight, 0);
   const weightTotal = scoredSections.reduce((sum, section) => sum + section.weight, 0);
   const answeredQuestions = scoredSections.reduce((sum, section) => sum + section.answered, 0);
+  const skippedQuestions = scoredSections.reduce((sum, section) => sum + section.skipped, 0);
+  const notAnsweredQuestions = scoredSections.reduce((sum, section) => sum + section.notAnswered, 0);
   const totalQuestions = scoredSections.reduce((sum, section) => sum + section.totalQuestions, 0);
+  const pendingQuestions = Math.max(totalQuestions - answeredQuestions - skippedQuestions - notAnsweredQuestions, 0);
   const finalScore = weightTotal ? Number((weightedTotal / weightTotal).toFixed(2)) : 0;
   const targetWeightedTotal = scoredSections.reduce((sum, section) => sum + section.targetScore * section.weight, 0);
   const targetScore = weightTotal ? Number((targetWeightedTotal / weightTotal).toFixed(2)) : 0;
@@ -242,6 +244,12 @@ export function calculateAssessment(draft, sections = []) {
     stage,
     targetStage,
     benchmark,
+    answeredQuestions,
+    skippedQuestions,
+    notAnsweredQuestions,
+    pendingQuestions,
+    completedQuestions: answeredQuestions + skippedQuestions + notAnsweredQuestions,
+    totalQuestions,
     scoredSections,
     strengths,
     priorities,

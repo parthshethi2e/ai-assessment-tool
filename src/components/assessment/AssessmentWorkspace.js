@@ -136,12 +136,12 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
   }, [draft, hydrated]);
 
   const assessment = useMemo(() => calculateAssessment(draft, sections), [draft, sections]);
-  const totalSteps = sections.length + 2;
-  const reviewStep = totalSteps - 1;
-  const activeSection = currentStep > 0 && currentStep < reviewStep ? sections[currentStep - 1] : null;
-  const progress = Math.round((currentStep / reviewStep) * 100);
-  const reportIsSaved = currentStep === reviewStep && saveState === "saved" && Boolean(savedReportId);
-  const reportIsGenerating = currentStep === reviewStep && !reportIsSaved;
+  const summaryStep = sections.length + 1;
+  const reportStep = sections.length + 2;
+  const activeSection = currentStep > 0 && currentStep < summaryStep ? sections[currentStep - 1] : null;
+  const progress = Math.round((Math.min(currentStep, reportStep) / reportStep) * 100);
+  const reportIsSaved = currentStep === reportStep && saveState === "saved" && Boolean(savedReportId);
+  const reportIsGenerating = currentStep === reportStep && !reportIsSaved;
 
   const chartData = assessment.scoredSections.map((section) => ({
     subject: section.title,
@@ -149,7 +149,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
   }));
 
   useEffect(() => {
-    if (currentStep !== reviewStep || savedReportId || hasAutoSubmitted || saveState === "saving" || status === "loading") {
+    if (currentStep !== reportStep || savedReportId || hasAutoSubmitted || saveState === "saving" || status === "loading") {
       return;
     }
 
@@ -214,7 +214,11 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
     };
 
     submitAssessment();
-  }, [assessment, currentStep, draft, hasAutoSubmitted, reportGenerationEnabled, reviewStep, saveState, savedReportId, status]);
+  }, [assessment, currentStep, draft, hasAutoSubmitted, reportGenerationEnabled, reportStep, saveState, savedReportId, status]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentStep]);
 
   useEffect(() => {
     const handleDocumentClick = (event) => {
@@ -340,44 +344,12 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
       errors.sizeBand = "Organization size is required.";
     }
 
-    if (!draft.profile.annualBudgetBand) {
-      errors.annualBudgetBand = "Annual budget or revenue band is required.";
-    }
-
     if (!draft.profile.respondentRole) {
       errors.respondentRole = "Primary respondent role is required.";
     }
 
-    if (!draft.profile.geography.trim()) {
-      errors.geography = "Operating geography is required.";
-    }
-
-    if (!draft.profile.mission.trim()) {
-      errors.mission = "Mission or business context is required.";
-    }
-
-    if (!draft.profile.currentTools.trim()) {
-      errors.currentTools = "Current tools are required.";
-    }
-
     if (!draft.notes.priority) {
       errors.priority = "Primary transformation priority is required.";
-    }
-
-    if (!draft.notes.timeline) {
-      errors.timeline = "Planning horizon is required.";
-    }
-
-    if (!draft.notes.knownRisks.trim()) {
-      errors.knownRisks = "Known risks or sensitivities are required.";
-    }
-
-    if (!draft.notes.challenges.trim()) {
-      errors.challenges = "Current challenges are required.";
-    }
-
-    if (!draft.notes.successMeasures.trim()) {
-      errors.successMeasures = "Success measures are required.";
     }
 
     setProfileErrors(errors);
@@ -396,7 +368,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
         Object.fromEntries(
           unanswered.map((question) => [
             question.id,
-            "Select current maturity and target maturity, or choose skip for now / preferred not to answer.",
+            "Select current maturity, or choose skip for now / preferred not to answer.",
           ])
         )
       );
@@ -418,11 +390,11 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
   const handleNext = () => {
     if (currentStep === 0 && !validateProfile()) return;
     if (activeSection && !validateSection()) return;
-    setCurrentStep((step) => Math.min(step + 1, reviewStep));
+    setCurrentStep((step) => Math.min(step + 1, reportStep));
   };
 
   const handleBack = () => {
-    if (currentStep === reviewStep) {
+    if (currentStep === reportStep) {
       setAnalysis(null);
       setStatus("idle");
       setSaveState("idle");
@@ -438,7 +410,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
       ? "Report generated and saved."
       : saveState === "error"
         ? "We could not save the report."
-        : currentStep === reviewStep
+        : currentStep === reportStep
           ? reportGenerationEnabled
             ? "AI report is being prepared automatically."
             : "Assessment report is being saved with scorecard-only mode."
@@ -460,7 +432,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
             }}
           >
             <Home className="size-4" />
-            Close
+            Exit assessment
           </Link>
         </Button>
       </div>
@@ -468,7 +440,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
           <Card className="border-0 bg-[linear-gradient(160deg,rgba(14,116,144,0.98),rgba(15,23,42,0.98))] text-white ring-0 shadow-2xl">
             <CardHeader>
-              <BrandBadge dark subtitle="AI readiness and transformation advisory" />
+              <BrandBadge dark subtitle="Assessment flow" />
               <CardTitle className="text-2xl font-semibold text-white">Assessment workspace</CardTitle>
               <CardDescription className="text-white/75">Designed by I2E Consulting for executive-ready AI readiness outputs.</CardDescription>
             </CardHeader>
@@ -484,8 +456,8 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
               </div>
 
               <div className="space-y-3">
-                {["Profile", ...sections.map((section) => section.title), "Report"].map((label, index) => {
-                  const complete = index < currentStep;
+                {["Profile", ...sections.map((section) => section.title), "Review", "Report"].map((label, index) => {
+                  const complete = index < currentStep || (label === "Report" && reportIsSaved);
                   const active = index === currentStep;
 
                   return (
@@ -550,7 +522,17 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
               sectionError={sectionError}
               questionErrors={questionErrors}
               currentStep={currentStep}
-              totalSteps={reviewStep}
+              totalSteps={summaryStep}
+            />
+          ) : currentStep === summaryStep ? (
+            <SubmissionReviewStep
+              draft={draft}
+              assessment={assessment}
+              onBack={handleBack}
+              onNext={handleNext}
+              onJumpToSection={(index) => setCurrentStep(index + 1)}
+              reportGenerationEnabled={reportGenerationEnabled}
+              updateNotes={updateNotes}
             />
           ) : (
             <ReviewStep
@@ -610,16 +592,8 @@ function validateProfilePreview(draft) {
       draft.profile.organizationName.trim() &&
       draft.profile.sector &&
       draft.profile.sizeBand &&
-      draft.profile.annualBudgetBand &&
-      draft.profile.geography.trim() &&
       draft.profile.respondentRole &&
-      draft.profile.mission.trim() &&
-      draft.profile.currentTools.trim() &&
-      draft.notes.priority &&
-      draft.notes.timeline &&
-      draft.notes.knownRisks.trim() &&
-      draft.notes.challenges.trim() &&
-      draft.notes.successMeasures.trim()
+      draft.notes.priority
   );
 }
 
@@ -647,7 +621,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
           </div>
 
           <div className="rounded-3xl border border-cyan-100 bg-cyan-50 px-5 py-4 text-sm text-cyan-900">
-            Save-and-resume is on by default in this browser.
+            Auto-save is ON in this browser.
           </div>
         </div>
 
@@ -684,7 +658,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
             <FieldError message={errors.sizeBand} />
           </Field>
 
-          <Field label="Annual budget / revenue band">
+          <Field label="Annual budget / revenue band (optional)">
             <Select
               aria-invalid={Boolean(errors.annualBudgetBand)}
               value={draft.profile.annualBudgetBand}
@@ -706,7 +680,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
             <FieldError message={errors.respondentRole} />
           </Field>
 
-          <Field label="Operating geography">
+          <Field label="Operating geography (optional)">
             <Input
               aria-invalid={Boolean(errors.geography)}
               value={draft.profile.geography}
@@ -729,7 +703,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
         </div>
 
         <div className="mt-5 grid gap-4">
-          <Field label="Mission or business context">
+          <Field label="Mission or business context (optional)">
             <Textarea
               aria-invalid={Boolean(errors.mission)}
               value={draft.profile.mission}
@@ -739,7 +713,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
             <FieldError message={errors.mission} />
           </Field>
 
-          <Field label="Which tools are you currently using?">
+          <Field label="Which tools are you currently using? (optional)">
             <Textarea
               aria-invalid={Boolean(errors.currentTools)}
               value={draft.profile.currentTools}
@@ -750,17 +724,18 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
           </Field>
 
           <div className="grid gap-5 md:grid-cols-2">
-            <Field label="Planning horizon">
+            <Field label="Roadmap timeframe">
               <Select
                 aria-invalid={Boolean(errors.timeline)}
                 value={draft.notes.timeline}
                 onChange={(event) => updateNotes("timeline", event.target.value)}
                 options={timelineOptions.map((item) => ({ value: item, label: item }))}
               />
+              <p className="text-xs leading-5 text-slate-500">How far ahead should the roadmap and recommendations look?</p>
               <FieldError message={errors.timeline} />
             </Field>
 
-          <Field label="Known risks or sensitivities">
+          <Field label="Known risks or sensitivities (optional)">
             <Input
               aria-invalid={Boolean(errors.knownRisks)}
               value={draft.notes.knownRisks}
@@ -770,32 +745,12 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
             <FieldError message={errors.knownRisks} />
           </Field>
           </div>
-
-          <Field label="Biggest current challenges">
-            <Textarea
-              aria-invalid={Boolean(errors.challenges)}
-              value={draft.notes.challenges}
-              onChange={(event) => updateNotes("challenges", event.target.value)}
-              placeholder="List the operational, customer, stakeholder, or program delivery problems you most want to improve."
-            />
-            <FieldError message={errors.challenges} />
-          </Field>
-
-          <Field label="How would success be measured?">
-            <Textarea
-              aria-invalid={Boolean(errors.successMeasures)}
-              value={draft.notes.successMeasures}
-              onChange={(event) => updateNotes("successMeasures", event.target.value)}
-              placeholder="Examples: hours saved, response time, beneficiary reach, donor reporting quality, margin, or retention."
-            />
-            <FieldError message={errors.successMeasures} />
-          </Field>
         </div>
 
         <div className="mt-8 flex items-center justify-between gap-4">
-          <p className="text-sm text-slate-500">All profile fields are required before the assessment can begin.</p>
+          <p className="text-sm text-slate-500">Only the key context fields are required before the assessment begins.</p>
           <Button disabled={!canContinue} size="lg" className="h-11 rounded-full px-6" onClick={onNext}>
-            Start assessment
+            Continue to assessment
             <ArrowRight className="size-4" />
           </Button>
         </div>
@@ -817,7 +772,7 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
             <p className="max-w-3xl text-base leading-7 text-slate-600">{section.description}</p>
           </div>
           <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-600">
-            Select current maturity and target maturity for each statement.
+            Select the current maturity for each statement. Target maturity is optional when you want to capture a future-state goal.
           </div>
         </div>
 
@@ -867,7 +822,7 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
 
                   {response.mode === "score" ? (
                     <div>
-                      <div className="mb-3 text-sm font-semibold text-slate-900">Target maturity</div>
+                      <div className="mb-3 text-sm font-semibold text-slate-900">Target maturity <span className="font-normal text-slate-500">(optional)</span></div>
                       <div className="grid grid-cols-5 gap-3">
                         {questionScoreLabels.map((label, index) => {
                           const value = index + 1;
@@ -923,11 +878,6 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
                   </Field>
 
                   <FieldError message={questionErrors[question.id]} />
-                  {response.mode === "score" && typeof response.score === "number" && typeof response.targetScore === "number" ? (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                      Gap captured: current {response.score}/5 to target {response.targetScore}/5
-                    </div>
-                  ) : null}
                 </CardContent>
               </Card>
             );
@@ -946,6 +896,108 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
             Continue
             <ArrowRight className="size-4" />
           </Button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SubmissionReviewStep({ draft, assessment, onBack, onNext, onJumpToSection, reportGenerationEnabled, updateNotes }) {
+  const firstIncompleteSection = assessment.scoredSections.find((section) => section.answered + section.skipped + section.notAnswered < section.totalQuestions);
+
+  return (
+    <div className="space-y-6">
+      <section className="rounded-[2rem] border border-slate-200/70 bg-white/85 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur">
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-6">
+          <div className="max-w-3xl space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-700">Submission review</p>
+            <h1 className="font-heading text-4xl font-semibold tracking-tight text-slate-950">Review completion before generating the report.</h1>
+            <p className="text-base leading-7 text-slate-600">
+              Check attempted, skipped, and unanswered responses across each pillar. You can revisit any section before creating the final report.
+            </p>
+          </div>
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-600">
+            {reportGenerationEnabled ? "The report will be generated after this review step." : "The scorecard report will be saved after this review step."}
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-4">
+          <Metric label="Attempted" value={assessment.answeredQuestions} />
+          <Metric label="Skipped" value={assessment.skippedQuestions} />
+          <Metric label="Not answered" value={assessment.notAnsweredQuestions} />
+          <Metric label="Pending" value={assessment.pendingQuestions} compact />
+        </div>
+
+        <div className="mt-8 grid gap-4">
+          {assessment.scoredSections.map((section, index) => {
+            const completed = section.answered + section.skipped + section.notAnswered;
+            const pending = Math.max(section.totalQuestions - completed, 0);
+
+            return (
+              <Card key={section.id} className="border border-slate-200/80 bg-white shadow-sm">
+                <CardContent className="flex flex-wrap items-center justify-between gap-4 py-5">
+                  <div className="space-y-2">
+                    <div className="text-lg font-semibold text-slate-950">{section.title}</div>
+                    <div className="flex flex-wrap gap-3 text-sm text-slate-600">
+                      <span>Attempted: {section.answered}</span>
+                      <span>Skipped: {section.skipped}</span>
+                      <span>Not answered: {section.notAnswered}</span>
+                      <span>Pending: {pending}</span>
+                    </div>
+                  </div>
+                  <Button variant="outline" className="rounded-full" onClick={() => onJumpToSection(index)}>
+                    Review section
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        <Card className="mt-8 border border-slate-200/80 bg-white shadow-sm">
+          <CardHeader>
+            <CardTitle>Additional context for the report</CardTitle>
+            <CardDescription>These inputs are optional and can be added now instead of during the initial profile step.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <Field label="Biggest current challenges (optional)">
+              <Textarea
+                value={draft.notes.challenges}
+                onChange={(event) => updateNotes("challenges", event.target.value)}
+                placeholder="List the operational, customer, stakeholder, or program delivery problems you most want to improve."
+              />
+            </Field>
+            <Field label="How would success be measured? (optional)">
+              <Textarea
+                value={draft.notes.successMeasures}
+                onChange={(event) => updateNotes("successMeasures", event.target.value)}
+                placeholder="Examples: hours saved, response time, beneficiary reach, donor reporting quality, margin, or retention."
+              />
+            </Field>
+          </CardContent>
+        </Card>
+
+        {firstIncompleteSection ? (
+          <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            There are still unanswered questions in {firstIncompleteSection.title}. You can still generate the report, but reviewing incomplete sections first will improve the output.
+          </div>
+        ) : null}
+
+        <div className="mt-8 flex items-center justify-between gap-4">
+          <Button variant="outline" size="lg" className="h-11 rounded-full px-6" onClick={onBack}>
+            Back
+          </Button>
+          <div className="flex flex-wrap gap-3">
+            {firstIncompleteSection ? (
+              <Button variant="outline" size="lg" className="h-11 rounded-full px-6" onClick={() => onJumpToSection(assessment.scoredSections.indexOf(firstIncompleteSection))}>
+                Review incomplete section
+              </Button>
+            ) : null}
+            <Button size="lg" className="h-11 rounded-full px-6" onClick={onNext}>
+              {reportGenerationEnabled ? "Generate report" : "Save report"}
+              <ArrowRight className="size-4" />
+            </Button>
+          </div>
         </div>
       </section>
     </div>
@@ -1054,7 +1106,7 @@ function ReviewStep({
             <Card className="border border-slate-200/80 bg-white shadow-sm">
               <CardHeader>
                 <CardTitle>Recommended starter use cases</CardTitle>
-                <CardDescription>Matched to the organization type and sector selected in the profile.</CardDescription>
+                <CardDescription>Matched to the selected sector and operating context from the profile.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3">
                 {assessment.recommendedUseCases.map((item) => (
@@ -1087,7 +1139,7 @@ function ReviewStep({
                 <ContextRow label="Size">{draft.profile.sizeBand || "Not provided"}</ContextRow>
                 <ContextRow label="Current tools">{draft.profile.currentTools || "Not provided"}</ContextRow>
                 <ContextRow label="Priority">{draft.notes.priority || "Not provided"}</ContextRow>
-                <ContextRow label="Timeline">{draft.notes.timeline || "Not provided"}</ContextRow>
+                <ContextRow label="Roadmap timeframe">{draft.notes.timeline || "Not provided"}</ContextRow>
               </CardContent>
             </Card>
           </div>
@@ -1110,8 +1162,8 @@ function ReviewStep({
             </Card>
 
             <div className="grid gap-6 xl:grid-cols-2">
-              <InfoListCard title="Primary gaps" items={analysis.gaps} tone="rose" titleKey="area" bodyKey="description" />
-              <InfoListCard title="Opportunities" items={analysis.opportunities} tone="emerald" titleKey="opportunity" bodyKey="description" />
+              <InfoListCard title="Top readiness gaps" items={analysis.gaps} tone="rose" titleKey="area" bodyKey="description" />
+              <InfoListCard title="Recommended opportunities" items={analysis.opportunities} tone="emerald" titleKey="opportunity" bodyKey="description" />
             </div>
 
             <Card className="border border-slate-200/80 bg-white shadow-sm">
@@ -1211,7 +1263,7 @@ function Metric({ label, value, compact = false }) {
   return (
     <div className="min-h-28 min-w-0 rounded-3xl border border-slate-200 bg-slate-50 px-5 py-5">
       <div className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</div>
-      <div className={`mt-3 break-words font-semibold leading-snug text-slate-950 ${compact ? "text-sm" : "text-base"}`}>{value}</div>
+      <div className={`mt-3 text-pretty font-semibold leading-snug text-slate-950 ${compact ? "text-sm" : "text-base"}`}>{value}</div>
     </div>
   );
 }

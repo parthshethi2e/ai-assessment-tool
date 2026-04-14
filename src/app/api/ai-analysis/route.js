@@ -1,4 +1,5 @@
 import { openai } from "@/lib/openai";
+import { buildAssessmentAnalysisPrompt } from "@/lib/analysisPrompt";
 import { generateFallbackAnalysis, normalizeAnalysis } from "@/lib/assessment";
 
 function extractJson(text) {
@@ -19,63 +20,7 @@ export async function POST(request) {
   try {
     const { profile, notes, assessment } = body;
 
-    const prompt = `
-You are a senior AI transformation advisor preparing an executive-ready readiness report.
-
-Organization profile:
-${JSON.stringify(profile, null, 2)}
-
-Context notes:
-${JSON.stringify(notes, null, 2)}
-
-Scored assessment:
-${JSON.stringify(assessment, null, 2)}
-
-Instructions:
-1. Tailor the language to the selected sector and the tools the user says they currently use.
-2. Be practical, specific, and businesslike.
-3. Focus on the top 3 gaps, top 3 opportunities, and a realistic roadmap.
-4. Keep recommendations aligned with the score profile. Do not invent advanced maturity if scores are weak.
-5. Keep the recommended tooling broad and credible.
-6. Use all user-provided inputs when relevant, including current tools, current maturity scores, target maturity scores, question-level gaps, skip/NA responses, and question comments.
-7. Treat target maturity as the desired future state and prioritize large current-vs-target gaps.
-
-Return strict JSON only with this shape:
-{
-  "summary": {
-    "headline": "",
-    "current_state": "",
-    "key_risk": "",
-    "recommended_focus": ""
-  },
-  "gaps": [
-    {
-      "area": "",
-      "description": ""
-    }
-  ],
-  "opportunities": [
-    {
-      "opportunity": "",
-      "description": ""
-    }
-  ],
-  "roadmap": {
-    "short_term": [],
-    "mid_term": [],
-    "long_term": []
-  },
-  "tools": {
-    "data": [],
-    "ai": [],
-    "cloud": []
-  },
-  "budget": {
-    "level": "",
-    "rationale": ""
-  }
-}
-`;
+    const prompt = buildAssessmentAnalysisPrompt(profile, notes, assessment);
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",

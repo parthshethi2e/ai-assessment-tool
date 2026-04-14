@@ -1,10 +1,8 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import BrandBadge from "@/components/BrandBadge";
 import { Button } from "@/components/ui/button";
 
 export default function SiteHeader({ current = "", hideStartAssessment = false }) {
-  const showStartAssessment = !hideStartAssessment && !String(current).startsWith("/survey");
   const navClass = (href) =>
     `rounded-full px-4 py-2 text-sm font-semibold transition ${
       current === href
@@ -25,7 +23,7 @@ export default function SiteHeader({ current = "", hideStartAssessment = false }
               Home
             </Link>
             <Link href="/survey" className={navClass("/survey")}>
-              Assessment
+              Workspace
             </Link>
             <Link href="/admin" className={navClass("/admin")}>
               Admin
@@ -37,15 +35,6 @@ export default function SiteHeader({ current = "", hideStartAssessment = false }
               Contact us
             </a>
           </Button>
-
-          {showStartAssessment ? (
-            <Button asChild variant="outline" className="h-11 rounded-full border-slate-200 px-5 text-slate-950">
-              <Link href="/survey">
-                Start assessment
-                <ArrowRight className="size-4" />
-              </Link>
-            </Button>
-          ) : null}
         </div>
       </div>
     </header>

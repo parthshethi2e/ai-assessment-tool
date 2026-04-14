@@ -148,8 +148,8 @@ export default async function ReportDetailPage({ params }) {
             ) : null}
 
             <div className="grid gap-6 lg:grid-cols-2">
-              <ListCard title="Primary gaps" items={ai.gaps || []} color="rose" titleKey="area" bodyKey="description" />
-              <ListCard title="Opportunities" items={ai.opportunities || []} color="emerald" titleKey="opportunity" bodyKey="description" />
+              <ListCard title="Top readiness gaps" items={ai.gaps || []} color="rose" titleKey="area" bodyKey="description" />
+              <ListCard title="Recommended opportunities" items={ai.opportunities || []} color="emerald" titleKey="opportunity" bodyKey="description" />
             </div>
 
             <Card className="border border-slate-200/80 bg-white shadow-sm">
@@ -193,7 +193,7 @@ export default async function ReportDetailPage({ params }) {
                 <ContextRow label="Size">{profile.sizeBand || "n/a"}</ContextRow>
                 <ContextRow label="Budget">{profile.annualBudgetBand || "n/a"}</ContextRow>
                 <ContextRow label="Priority">{notes.priority || "n/a"}</ContextRow>
-                <ContextRow label="Timeline">{notes.timeline || "n/a"}</ContextRow>
+                <ContextRow label="Roadmap timeframe">{notes.timeline || "n/a"}</ContextRow>
                 <ContextRow label="Role">{profile.respondentRole || "n/a"}</ContextRow>
               </CardContent>
             </Card>

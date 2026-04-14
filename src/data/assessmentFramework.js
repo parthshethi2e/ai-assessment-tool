@@ -32,6 +32,7 @@ export const respondentRoles = [
   "Finance",
   "People / HR",
   "Compliance / Risk",
+  "Others",
 ];
 
 export const timelineOptions = ["0-3 months", "3-6 months", "6-12 months", "12+ months"];
@@ -43,6 +44,7 @@ export const priorityOptions = [
   "Mission impact",
   "Risk reduction",
   "Workforce enablement",
+  "Others",
 ];
 
 export const scoreLabels = Object.values(defaultScoreLabels);
