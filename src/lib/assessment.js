@@ -66,10 +66,10 @@ export function getResponseRecord(response) {
   };
 }
 
-export function isResolvedResponse(response) {
+export function isResolvedResponse(response, requiresTarget = false) {
   const record = getResponseRecord(response);
   if (record.mode === "score") {
-    return typeof record.score === "number";
+    return requiresTarget ? typeof record.score === "number" && typeof record.targetScore === "number" : typeof record.score === "number";
   }
 
   return Boolean(record.mode);
@@ -178,6 +178,7 @@ export function calculateAssessment(draft, sections = []) {
         prompt: question.prompt,
         helperText: question.helperText || "",
         why: question.why || question.whyItMatters || "",
+        requiresTarget: question.requiresTarget !== false,
         mode: response.mode,
         score: response.score,
         scoreLabel: response.score ? question.scoreLabels?.[response.score] || "" : "",

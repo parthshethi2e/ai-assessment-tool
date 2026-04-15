@@ -1,0 +1,1 @@
+ALTER TABLE "AssessmentQuestion" ADD COLUMN IF NOT EXISTS "requiresTarget" BOOLEAN NOT NULL DEFAULT true;

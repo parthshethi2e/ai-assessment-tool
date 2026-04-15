@@ -226,7 +226,10 @@ export default function AdminDashboard({ initialSections, overview, adminUser, i
           : section
       )
     );
-    setDraftQuestions((current) => ({ ...current, [sectionId]: { prompt: "", whyItMatters: "", weight: 1, scoreLabels: defaultScoreLabels } }));
+    setDraftQuestions((current) => ({
+      ...current,
+      [sectionId]: { prompt: "", whyItMatters: "", weight: 1, scoreLabels: defaultScoreLabels, requiresTarget: true },
+    }));
     setMessage("Question created.");
     router.refresh();
   };
@@ -474,12 +477,18 @@ export default function AdminDashboard({ initialSections, overview, adminUser, i
               <SectionEditor
                 key={section.dbId || section.id}
                 section={section}
-                draftQuestion={draftQuestions[section.dbId || section.id] || { prompt: "", whyItMatters: "", weight: 1, scoreLabels: defaultScoreLabels }}
+                draftQuestion={draftQuestions[section.dbId || section.id] || { prompt: "", whyItMatters: "", weight: 1, scoreLabels: defaultScoreLabels, requiresTarget: true }}
                 setDraftQuestion={(patch) =>
                   setDraftQuestions((current) => ({
                     ...current,
                     [section.dbId || section.id]: {
-                      ...(current[section.dbId || section.id] || { prompt: "", whyItMatters: "", weight: 1, scoreLabels: defaultScoreLabels }),
+                      ...(current[section.dbId || section.id] || {
+                        prompt: "",
+                        whyItMatters: "",
+                        weight: 1,
+                        scoreLabels: defaultScoreLabels,
+                        requiresTarget: true,
+                      }),
                       ...patch,
                     },
                   }))
@@ -750,6 +759,14 @@ function SectionEditor({
                   <Input value={draftQuestion.helperText || ""} onChange={(event) => setDraftQuestion({ helperText: event.target.value })} />
                 </Field>
               </div>
+              <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={draftQuestion.requiresTarget !== false}
+                  onChange={(event) => setDraftQuestion({ requiresTarget: event.target.checked })}
+                />
+                Show target maturity for this question
+              </label>
               <ScoreLabelFields
                 labels={normalizeScoreLabelDraft(draftQuestion.scoreLabels)}
                 errors={questionErrors}
@@ -790,6 +807,7 @@ function QuestionEditor({ question, onSave, onDelete }) {
     weight: question.weight,
     sortOrder: question.sortOrder,
     isActive: question.isActive ?? true,
+    requiresTarget: question.requiresTarget !== false,
     scoreLabels: normalizeScoreLabelDraft(question.scoreLabels),
   });
 
@@ -884,6 +902,14 @@ function QuestionEditor({ question, onSave, onDelete }) {
             onChange={(event) => setDraft((current) => ({ ...current, isActive: event.target.checked }))}
           />
           Active in live survey
+        </label>
+        <label className="flex items-center gap-3 text-sm font-medium text-slate-700">
+          <input
+            type="checkbox"
+            checked={draft.requiresTarget !== false}
+            onChange={(event) => setDraft((current) => ({ ...current, requiresTarget: event.target.checked }))}
+          />
+          Show target maturity for this question
         </label>
         <ScoreLabelFields
           labels={draft.scoreLabels}

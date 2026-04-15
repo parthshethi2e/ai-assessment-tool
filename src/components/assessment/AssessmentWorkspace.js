@@ -361,14 +361,16 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
       return true;
     }
 
-    const unanswered = activeSection.questions.filter((question) => !isResolvedResponse(draft.responses[question.id]));
+    const unanswered = activeSection.questions.filter((question) => !isResolvedResponse(draft.responses[question.id], question.requiresTarget));
 
     if (unanswered.length) {
       setQuestionErrors(
         Object.fromEntries(
           unanswered.map((question) => [
             question.id,
-            "Select current maturity, or choose skip for now / preferred not to answer.",
+            question.requiresTarget
+              ? "Select current and target maturity, or choose skip for now / preferred not to answer."
+              : "Select current maturity, or choose skip for now / preferred not to answer.",
           ])
         )
       );
@@ -385,7 +387,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
 
   const canContinueFromSection = !activeSection
     ? true
-    : activeSection.questions.every((question) => isResolvedResponse(draft.responses[question.id]));
+    : activeSection.questions.every((question) => isResolvedResponse(draft.responses[question.id], question.requiresTarget));
 
   const handleNext = () => {
     if (currentStep === 0 && !validateProfile()) return;
@@ -626,17 +628,17 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Organization name">
+          <Field label="Organization name" required>
             <Input
               aria-invalid={Boolean(errors.organizationName)}
               value={draft.profile.organizationName}
               onChange={(event) => updateProfile("organizationName", event.target.value)}
-              placeholder="Example: Horizon Health Network"
+              placeholder="Example: I2E Consulting"
             />
             <FieldError message={errors.organizationName} />
           </Field>
 
-          <Field label="Sector">
+          <Field label="Sector" required>
             <Select
               aria-invalid={Boolean(errors.sector)}
               value={draft.profile.sector}
@@ -647,7 +649,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
             <FieldError message={errors.sector} />
           </Field>
 
-          <Field label="Organization size">
+          <Field label="Organization size" required>
             <Select
               aria-invalid={Boolean(errors.sizeBand)}
               value={draft.profile.sizeBand}
@@ -658,7 +660,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
             <FieldError message={errors.sizeBand} />
           </Field>
 
-          <Field label="Annual budget / revenue band (optional)">
+          <Field label="Annual budget / revenue band">
             <Select
               aria-invalid={Boolean(errors.annualBudgetBand)}
               value={draft.profile.annualBudgetBand}
@@ -669,7 +671,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
             <FieldError message={errors.annualBudgetBand} />
           </Field>
 
-          <Field label="Primary respondent role">
+          <Field label="Primary respondent role" required>
             <Select
               aria-invalid={Boolean(errors.respondentRole)}
               value={draft.profile.respondentRole}
@@ -680,7 +682,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
             <FieldError message={errors.respondentRole} />
           </Field>
 
-          <Field label="Operating geography (optional)">
+          <Field label="Operating geography">
             <Input
               aria-invalid={Boolean(errors.geography)}
               value={draft.profile.geography}
@@ -690,7 +692,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
             <FieldError message={errors.geography} />
           </Field>
 
-          <Field label="Primary transformation priority">
+          <Field label="Primary transformation priority" required>
             <Select
               aria-invalid={Boolean(errors.priority)}
               value={draft.notes.priority}
@@ -703,7 +705,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
         </div>
 
         <div className="mt-5 grid gap-4">
-          <Field label="Mission or business context (optional)">
+          <Field label="Mission or business context">
             <Textarea
               aria-invalid={Boolean(errors.mission)}
               value={draft.profile.mission}
@@ -713,7 +715,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
             <FieldError message={errors.mission} />
           </Field>
 
-          <Field label="Which tools are you currently using? (optional)">
+          <Field label="Which tools are you currently using?">
             <Textarea
               aria-invalid={Boolean(errors.currentTools)}
               value={draft.profile.currentTools}
@@ -724,7 +726,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
           </Field>
 
           <div className="grid gap-5 md:grid-cols-2">
-            <Field label="Roadmap timeframe">
+            <Field label="Roadmap timeframe" required>
               <Select
                 aria-invalid={Boolean(errors.timeline)}
                 value={draft.notes.timeline}
@@ -735,7 +737,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
               <FieldError message={errors.timeline} />
             </Field>
 
-          <Field label="Known risks or sensitivities (optional)">
+          <Field label="Known risks or sensitivities">
             <Input
               aria-invalid={Boolean(errors.knownRisks)}
               value={draft.notes.knownRisks}
@@ -772,7 +774,7 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
             <p className="max-w-3xl text-base leading-7 text-slate-600">{section.description}</p>
           </div>
           <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm text-slate-600">
-            Select the current maturity for each statement. Target maturity is optional when you want to capture a future-state goal.
+            Select the current maturity for each statement. Questions that support future-state planning will also show a target maturity option.
           </div>
         </div>
 
@@ -820,9 +822,9 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
                     </div>
                   </div>
 
-                  {response.mode === "score" ? (
+                  {response.mode === "score" && question.requiresTarget !== false ? (
                     <div>
-                      <div className="mb-3 text-sm font-semibold text-slate-900">Target maturity <span className="font-normal text-slate-500">(optional)</span></div>
+                      <div className="mb-3 text-sm font-semibold text-slate-900">Target maturity</div>
                       <div className="grid grid-cols-5 gap-3">
                         {questionScoreLabels.map((label, index) => {
                           const value = index + 1;
@@ -960,14 +962,14 @@ function SubmissionReviewStep({ draft, assessment, onBack, onNext, onJumpToSecti
             <CardDescription>These inputs are optional and can be added now instead of during the initial profile step.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
-            <Field label="Biggest current challenges (optional)">
+            <Field label="Biggest current challenges">
               <Textarea
                 value={draft.notes.challenges}
                 onChange={(event) => updateNotes("challenges", event.target.value)}
                 placeholder="List the operational, customer, stakeholder, or program delivery problems you most want to improve."
               />
             </Field>
-            <Field label="How would success be measured? (optional)">
+            <Field label="How would success be measured?">
               <Textarea
                 value={draft.notes.successMeasures}
                 onChange={(event) => updateNotes("successMeasures", event.target.value)}
@@ -1229,10 +1231,13 @@ function ReviewStep({
   );
 }
 
-function Field({ label, children }) {
+function Field({ label, children, required = false }) {
   return (
     <label className="grid gap-2 text-sm font-medium text-slate-800">
-      <span>{label}</span>
+      <span>
+        {label}
+        {required ? <span className="ml-1 text-rose-500">*</span> : null}
+      </span>
       {children}
     </label>
   );

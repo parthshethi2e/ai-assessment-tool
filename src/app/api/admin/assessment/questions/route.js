@@ -23,6 +23,7 @@ function snapshotQuestion(question) {
     helperText: question.helperText,
     whyItMatters: question.whyItMatters,
     scoreLabels: question.scoreLabels || defaultScoreLabels,
+    requiresTarget: question.requiresTarget !== false,
     weight: Number(question.weight),
     sortOrder: Number(question.sortOrder),
     isActive: Boolean(question.isActive),
@@ -45,13 +46,15 @@ function normalizeScoreLabels(labels) {
   return next;
 }
 
-function questionDelegateSupportsScoreLabels(prisma) {
+function questionDelegateSupportsAdminFields(prisma) {
   const questionFields = prisma?._runtimeDataModel?.models?.AssessmentQuestion?.fields || [];
-  return questionFields.some((field) => field.name === "scoreLabels");
+  const fieldNames = new Set(questionFields.map((field) => field.name));
+  return fieldNames.has("scoreLabels") && fieldNames.has("requiresTarget");
 }
 
 async function ensureScoreLabelsColumn(prisma) {
   await prisma.$executeRawUnsafe(`ALTER TABLE "AssessmentQuestion" ADD COLUMN IF NOT EXISTS "scoreLabels" JSONB`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "AssessmentQuestion" ADD COLUMN IF NOT EXISTS "requiresTarget" BOOLEAN NOT NULL DEFAULT true`);
   await prisma.$executeRawUnsafe(
     `
       UPDATE "AssessmentQuestion"
@@ -76,6 +79,7 @@ export async function POST(request) {
     const weight = Number(body.weight || 1);
     const sortOrder = body.sortOrder == null ? null : Number(body.sortOrder);
     const scoreLabels = normalizeScoreLabels(body.scoreLabels);
+    const requiresTarget = body.requiresTarget !== false;
     let section = null;
 
     if (!body.sectionId || !prompt) {
@@ -100,7 +104,7 @@ export async function POST(request) {
 
     let question;
 
-    if (hasFrameworkDelegates(prisma) && questionDelegateSupportsScoreLabels(prisma)) {
+    if (hasFrameworkDelegates(prisma) && questionDelegateSupportsAdminFields(prisma)) {
       section = await prisma.assessmentSection.findFirst({
         where: {
           OR: [{ id: body.sectionId }, { key: body.sectionId }],
@@ -123,6 +127,7 @@ export async function POST(request) {
           helperText,
           whyItMatters,
           scoreLabels,
+          requiresTarget,
           weight,
           sortOrder: sortOrder || count + 1,
           isActive: body.isActive ?? true,
@@ -154,13 +159,14 @@ export async function POST(request) {
             "helperText",
             "whyItMatters",
             "scoreLabels",
+            "requiresTarget",
             "weight",
             "sortOrder",
             "isActive",
             "createdAt",
             "updatedAt"
           )
-          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, NOW(), NOW())
+          VALUES (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6::jsonb, $7, $8, $9, $10, NOW(), NOW())
           RETURNING *
         `,
         body.key?.trim() || slugify(prompt),
@@ -169,6 +175,7 @@ export async function POST(request) {
         helperText,
         whyItMatters,
         JSON.stringify(scoreLabels),
+        requiresTarget,
         weight,
         sortOrder || count + 1,
         body.isActive ?? true

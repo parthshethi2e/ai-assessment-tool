@@ -36,6 +36,7 @@ model AssessmentQuestion {
   helperText  String?
   whyItMatters String?
   scoreLabels Json?
+  requiresTarget Boolean        @default(true)
   weight      Float             @default(1)
   sortOrder   Int
   isActive    Boolean           @default(true)

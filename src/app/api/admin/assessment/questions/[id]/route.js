@@ -15,6 +15,7 @@ function snapshotQuestion(question) {
     helperText: question.helperText,
     whyItMatters: question.whyItMatters,
     scoreLabels: question.scoreLabels || defaultScoreLabels,
+    requiresTarget: question.requiresTarget !== false,
     weight: Number(question.weight),
     sortOrder: Number(question.sortOrder),
     isActive: Boolean(question.isActive),
@@ -37,13 +38,15 @@ function normalizeScoreLabels(labels) {
   return next;
 }
 
-function questionDelegateSupportsScoreLabels(prisma) {
+function questionDelegateSupportsAdminFields(prisma) {
   const questionFields = prisma?._runtimeDataModel?.models?.AssessmentQuestion?.fields || [];
-  return questionFields.some((field) => field.name === "scoreLabels");
+  const fieldNames = new Set(questionFields.map((field) => field.name));
+  return fieldNames.has("scoreLabels") && fieldNames.has("requiresTarget");
 }
 
 async function ensureScoreLabelsColumn(prisma) {
   await prisma.$executeRawUnsafe(`ALTER TABLE "AssessmentQuestion" ADD COLUMN IF NOT EXISTS "scoreLabels" JSONB`);
+  await prisma.$executeRawUnsafe(`ALTER TABLE "AssessmentQuestion" ADD COLUMN IF NOT EXISTS "requiresTarget" BOOLEAN NOT NULL DEFAULT true`);
   await prisma.$executeRawUnsafe(
     `
       UPDATE "AssessmentQuestion"
@@ -68,6 +71,7 @@ export async function PATCH(request, { params }) {
     const weight = Number(body.weight || 1);
     const sortOrder = Number(body.sortOrder || 1);
     const scoreLabels = normalizeScoreLabels(body.scoreLabels);
+    const requiresTarget = body.requiresTarget !== false;
 
     if (!prompt) {
       return Response.json({ error: "Question prompt is required." }, { status: 400 });
@@ -92,7 +96,7 @@ export async function PATCH(request, { params }) {
     let question;
     let existing;
 
-    if (hasFrameworkDelegates(prisma) && questionDelegateSupportsScoreLabels(prisma)) {
+    if (hasFrameworkDelegates(prisma) && questionDelegateSupportsAdminFields(prisma)) {
       existing = await prisma.assessmentQuestion.findFirst({
         where: {
           OR: [{ id }, { key: id }],
@@ -110,6 +114,7 @@ export async function PATCH(request, { params }) {
           helperText,
           whyItMatters,
           scoreLabels,
+          requiresTarget,
           weight,
           sortOrder,
           isActive: body.isActive ?? true,
@@ -133,9 +138,10 @@ export async function PATCH(request, { params }) {
               "helperText" = $3,
               "whyItMatters" = $4,
               "scoreLabels" = $5::jsonb,
-              "weight" = $6,
-              "sortOrder" = $7,
-              "isActive" = $8,
+              "requiresTarget" = $6,
+              "weight" = $7,
+              "sortOrder" = $8,
+              "isActive" = $9,
               "updatedAt" = NOW()
           WHERE "id" = $1
           RETURNING *
@@ -145,6 +151,7 @@ export async function PATCH(request, { params }) {
         helperText,
         whyItMatters,
         JSON.stringify(scoreLabels),
+        requiresTarget,
         weight,
         sortOrder,
         body.isActive ?? true
