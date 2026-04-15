@@ -87,6 +87,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
   const [questionErrors, setQuestionErrors] = useState({});
   const [hasAutoSubmitted, setHasAutoSubmitted] = useState(false);
   const [leavePrompt, setLeavePrompt] = useState(null);
+  const [returnStep, setReturnStep] = useState(null);
 
   useEffect(() => {
     if (!restoreDraft) {
@@ -101,6 +102,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
       setSectionError("");
       setQuestionErrors({});
       setHasAutoSubmitted(false);
+      setReturnStep(null);
       setHydrated(true);
       return;
     }
@@ -294,20 +296,6 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
     }));
   };
 
-  const clearDraft = () => {
-    window.localStorage.removeItem(STORAGE_KEY);
-    setDraft(defaultDraft);
-    setAnalysis(null);
-    setSavedReportId("");
-    setCurrentStep(0);
-    setStatus("idle");
-    setSaveState("idle");
-    setProfileErrors({});
-    setSectionError("");
-    setQuestionErrors({});
-    setHasAutoSubmitted(false);
-  };
-
   const confirmLeaveAssessment = () => {
     const href = leavePrompt?.href || "/";
     window.localStorage.removeItem(STORAGE_KEY);
@@ -392,10 +380,23 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
   const handleNext = () => {
     if (currentStep === 0 && !validateProfile()) return;
     if (activeSection && !validateSection()) return;
+
+    if (activeSection && returnStep != null) {
+      setCurrentStep(returnStep);
+      setReturnStep(null);
+      return;
+    }
+
     setCurrentStep((step) => Math.min(step + 1, reportStep));
   };
 
   const handleBack = () => {
+    if (activeSection && returnStep != null) {
+      setCurrentStep(returnStep);
+      setReturnStep(null);
+      return;
+    }
+
     if (currentStep === reportStep) {
       setAnalysis(null);
       setStatus("idle");
@@ -498,7 +499,14 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
                 <Metric label="Confidence" value={`${Math.round(assessment.confidence * 100)}%`} />
                 <Metric label="Benchmark" value={assessment.benchmark} compact />
               </div>
-              <p className="text-xs text-muted-foreground">{saveDraftHint}</p>
+              {saveState === "saved" ? (
+                <div className="flex items-center gap-2 text-xs font-medium text-emerald-700">
+                  <CheckCircle2 className="size-4 text-emerald-600" />
+                  <span>{saveDraftHint}</span>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">{saveDraftHint}</p>
+              )}
             </CardContent>
           </Card>
         </aside>
@@ -525,6 +533,7 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
               questionErrors={questionErrors}
               currentStep={currentStep}
               totalSteps={summaryStep}
+              returnToReview={returnStep === summaryStep}
             />
           ) : currentStep === summaryStep ? (
             <SubmissionReviewStep
@@ -532,7 +541,10 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
               assessment={assessment}
               onBack={handleBack}
               onNext={handleNext}
-              onJumpToSection={(index) => setCurrentStep(index + 1)}
+              onJumpToSection={(index) => {
+                setReturnStep(summaryStep);
+                setCurrentStep(index + 1);
+              }}
               reportGenerationEnabled={reportGenerationEnabled}
               updateNotes={updateNotes}
             />
@@ -547,7 +559,6 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
               chartData={chartData}
               reportGenerationEnabled={reportGenerationEnabled}
               onBack={handleBack}
-              onReset={clearDraft}
             />
           )}
         </main>
@@ -761,7 +772,7 @@ function ProfileStep({ draft, updateProfile, updateNotes, canContinue, errors, o
   );
 }
 
-function SectionStep({ section, draft, updateResponse, onBack, onNext, canContinue, sectionError, questionErrors, currentStep, totalSteps }) {
+function SectionStep({ section, draft, updateResponse, onBack, onNext, canContinue, sectionError, questionErrors, currentStep, totalSteps, returnToReview = false }) {
   return (
     <div className="space-y-6">
       <section className="rounded-[2rem] border border-slate-200/70 bg-white/85 p-8 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur">
@@ -892,10 +903,10 @@ function SectionStep({ section, draft, updateResponse, onBack, onNext, canContin
 
         <div className="mt-8 flex items-center justify-between">
           <Button variant="outline" size="lg" className="h-11 rounded-full px-6" onClick={onBack}>
-            Back
+            {returnToReview ? "Back to review" : "Back"}
           </Button>
           <Button disabled={!canContinue} size="lg" className="h-11 rounded-full px-6" onClick={onNext}>
-            Continue
+            {returnToReview ? "Save and return to review" : "Continue"}
             <ArrowRight className="size-4" />
           </Button>
         </div>
@@ -1016,7 +1027,6 @@ function ReviewStep({
   chartData,
   reportGenerationEnabled,
   onBack,
-  onReset,
 }) {
   return (
     <div className="space-y-6">
@@ -1220,12 +1230,6 @@ function ReviewStep({
             </p>
           </div>
         )}
-
-        <div className="mt-8 flex flex-wrap items-center justify-between gap-4">
-          <Button variant="ghost" className="rounded-full px-2 text-slate-500 hover:text-slate-900" onClick={onReset}>
-            Reset draft
-          </Button>
-        </div>
       </section>
     </div>
   );

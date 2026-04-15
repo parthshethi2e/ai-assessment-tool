@@ -48,7 +48,7 @@ export default function HomePage() {
               <div className="flex flex-wrap gap-4">
                 <Button asChild size="lg" className="h-12 rounded-full px-6 text-sm">
                   <Link href="/survey">
-                    Launch workspace
+                    Start assessment
                     <ArrowRight className="size-4" />
                   </Link>
                 </Button>
@@ -128,10 +128,10 @@ export default function HomePage() {
             <div className="rounded-[2rem] border border-slate-200/80 bg-slate-950 p-6 text-white shadow-sm">
               <h3 className="text-xl font-semibold">Next step</h3>
               <p className="mt-3 text-sm leading-6 text-white/70">
-                Launch the workspace, complete the assessment, review unanswered items, and then generate the report.
+                Start the assessment, complete the survey, review unanswered items, and then generate the report.
               </p>
               <Button asChild size="lg" className="mt-6 h-11 rounded-full bg-cyan-400 px-6 text-slate-950 hover:bg-cyan-300">
-                <Link href="/survey">Open assessment workspace</Link>
+                <Link href="/survey">Start assessment</Link>
               </Button>
             </div>
           </section>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 const footerLinks = [
   { href: "/", label: "Home" },
-  { href: "/survey", label: "Workspace" },
+  { href: "/survey", label: "Start assessment" },
   { href: "/admin", label: "Admin" },
 ];
 
@@ -27,7 +27,7 @@ export default function SiteFooter({ hideStartAssessment = false }) {
               {!hideStartAssessment ? (
                 <Button asChild className="h-11 rounded-full bg-cyan-400 px-6 text-slate-950 hover:bg-cyan-300">
                   <Link href="/survey">
-                    Open workspace
+                    Start assessment
                     <ArrowRight className="size-4" />
                   </Link>
                 </Button>

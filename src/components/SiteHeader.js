@@ -23,7 +23,7 @@ export default function SiteHeader({ current = "", hideStartAssessment = false }
               Home
             </Link>
             <Link href="/survey" className={navClass("/survey")}>
-              Workspace
+              Start assessment
             </Link>
             <Link href="/admin" className={navClass("/admin")}>
               Admin
