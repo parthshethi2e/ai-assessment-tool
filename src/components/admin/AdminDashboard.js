@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BarChart3, ChevronDown, ClipboardList, FilePlus2, FolderPlus, Pencil, Settings2, ShieldCheck, Trash2, UserRound } from "lucide-react";
+import { flushSync } from "react-dom";
+import { AlertCircle, BarChart3, CheckCircle2, ChevronDown, ClipboardList, FilePlus2, FolderPlus, Loader2, Pencil, Settings2, ShieldCheck, Trash2, UserRound, X } from "lucide-react";
 import AdminLogoutButton from "@/components/admin/AdminLogoutButton";
 import BrandBadge from "@/components/BrandBadge";
 import { assessmentAnalysisPromptTemplate } from "@/lib/analysisPrompt";
@@ -35,10 +36,17 @@ function canViewAuditLogs(adminUser) {
   return String(adminUser?.email || "").toLowerCase() === "admin@i2econsulting.com" || adminUser?.role === "super_admin";
 }
 
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 export default function AdminDashboard({ initialSections, overview, adminUser, initialSettings }) {
   const router = useRouter();
   const [sections, setSections] = useState(initialSections);
   const [status, setStatus] = useState("");
+  const [notification, setNotification] = useState(null);
+  const [loadingMessage, setLoadingMessage] = useState("");
+  const [confirmDialog, setConfirmDialog] = useState(null);
   const [settings, setSettings] = useState(initialSettings);
   const [savingSettings, setSavingSettings] = useState(false);
   const [newSection, setNewSection] = useState({
@@ -48,6 +56,13 @@ export default function AdminDashboard({ initialSections, overview, adminUser, i
   });
   const [draftQuestions, setDraftQuestions] = useState({});
   const [newSectionErrors, setNewSectionErrors] = useState({});
+  const [questionAction, setQuestionAction] = useState({ type: "", id: "" });
+  const [creatingSection, setCreatingSection] = useState(false);
+  const [updatingSectionId, setUpdatingSectionId] = useState("");
+  const [deletingSectionId, setDeletingSectionId] = useState("");
+  const [creatingQuestionSectionId, setCreatingQuestionSectionId] = useState("");
+  const [updatingQuestionId, setUpdatingQuestionId] = useState("");
+  const [deletingQuestionId, setDeletingQuestionId] = useState("");
 
   useEffect(() => {
     setSections(initialSections);
@@ -70,13 +85,55 @@ export default function AdminDashboard({ initialSections, overview, adminUser, i
     return () => window.clearInterval(intervalId);
   }, []);
 
-  const setMessage = (message) => {
-    setStatus(message);
-    window.setTimeout(() => setStatus(""), 3000);
+  useEffect(() => {
+    if (!notification) return undefined;
+
+    const timeoutId = window.setTimeout(() => {
+      setNotification(null);
+      setStatus("");
+    }, 5000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [notification]);
+
+  const setMessage = (message, type = "success") => {
+    flushSync(() => {
+      setStatus(message);
+      setNotification({ message, type });
+    });
   };
+
+  const startOperation = (message) => {
+    flushSync(() => {
+      setLoadingMessage(message);
+    });
+  };
+
+  const finishOperation = async () => {
+    await wait(2000);
+    flushSync(() => {
+      setLoadingMessage("");
+    });
+  };
+
+  const refreshAfterFeedback = () => {
+    window.setTimeout(() => router.refresh(), 2200);
+  };
+
+  const requestAdminConfirmation = ({ title, description, confirmLabel, tone = "default" }) =>
+    new Promise((resolve) => {
+      setConfirmDialog({
+        title,
+        description,
+        confirmLabel,
+        tone,
+        resolve,
+      });
+    });
 
   const updateSettings = async (nextValue) => {
     setSavingSettings(true);
+    startOperation("Updating settings...");
 
     try {
       const response = await fetch("/api/admin/settings", {
@@ -94,13 +151,14 @@ export default function AdminDashboard({ initialSections, overview, adminUser, i
       }
 
       setSettings(json.settings);
-      setMessage(`AI report generation ${nextValue ? "enabled" : "disabled"}.`);
-      router.refresh();
+      setMessage(`Done: AI report generation ${nextValue ? "enabled" : "disabled"}.`);
+      refreshAfterFeedback();
     } catch (error) {
       console.error(error);
-      setMessage(error.message || "Failed to update settings.");
+      setMessage(error.message || "Failed to update settings.", "error");
     } finally {
       setSavingSettings(false);
+      await finishOperation();
     }
   };
 
@@ -125,165 +183,272 @@ export default function AdminDashboard({ initialSections, overview, adminUser, i
 
   const createSection = async () => {
     if (!validateNewSection()) return;
-    const response = await fetch("/api/admin/assessment/sections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newSection),
-    });
+    setCreatingSection(true);
+    startOperation("Adding section...");
 
-    const json = await response.json();
+    try {
+      const response = await fetch("/api/admin/assessment/sections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newSection),
+      });
 
-    if (!response.ok) {
-      setMessage(json.error || "Failed to create section.");
-      return;
+      const json = await response.json();
+
+      if (!response.ok) {
+        setMessage(json.error || "Failed to create section.", "error");
+        return;
+      }
+
+      setSections((current) => [...current, { ...json.section, questions: [] }]);
+      setNewSection({ title: "", description: "", weight: 1 });
+      setNewSectionErrors({});
+      setMessage("Done: section created.");
+      refreshAfterFeedback();
+    } catch (error) {
+      console.error(error);
+      setMessage(error.message || "Failed to create section.", "error");
+    } finally {
+      setCreatingSection(false);
+      await finishOperation();
     }
-
-    setSections((current) => [...current, { ...json.section, questions: [] }]);
-    setNewSection({ title: "", description: "", weight: 1 });
-    setNewSectionErrors({});
-    setMessage("Section created.");
-    router.refresh();
   };
 
   const updateSection = async (sectionId, patch) => {
-    const existing = sections.find((section) => section.id === sectionId || section.dbId === sectionId);
-    const targetId = existing?.dbId || sectionId;
-
-    const response = await fetch(`/api/admin/assessment/sections/${targetId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
+    const confirmed = await requestAdminConfirmation({
+      title: "Save section changes?",
+      description: "This will update the section title, description, weight, and any related labels.",
+      confirmLabel: "Save section",
     });
-    const json = await response.json();
 
-    if (!response.ok) {
-      setMessage(json.error || "Failed to update section.");
+    if (!confirmed) {
       return;
     }
 
-    setSections((current) =>
-      current.map((section) =>
-        (section.dbId || section.id) === targetId
-          ? {
-              ...section,
-              ...json.section,
-              id: section.id,
-              dbId: json.section.id,
-            }
-          : section
-      )
-    );
-    setMessage("Section updated.");
-    router.refresh();
+    const existing = sections.find((section) => section.id === sectionId || section.dbId === sectionId);
+    const targetId = existing?.dbId || sectionId;
+    setUpdatingSectionId(targetId);
+    startOperation("Saving section...");
+
+    try {
+      const response = await fetch(`/api/admin/assessment/sections/${targetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const json = await response.json();
+
+      if (!response.ok) {
+        setMessage(json.error || "Failed to update section.", "error");
+        return;
+      }
+
+      setSections((current) =>
+        current.map((section) =>
+          (section.dbId || section.id) === targetId
+            ? {
+                ...section,
+                ...json.section,
+                id: section.id,
+                dbId: json.section.id,
+              }
+            : section
+        )
+      );
+      setMessage("Done: section updated.");
+      refreshAfterFeedback();
+    } catch (error) {
+      console.error(error);
+      setMessage(error.message || "Failed to update section.", "error");
+    } finally {
+      setUpdatingSectionId("");
+      await finishOperation();
+    }
   };
 
   const deleteSection = async (sectionId) => {
-    const response = await fetch(`/api/admin/assessment/sections/${sectionId}`, {
-      method: "DELETE",
+    const confirmed = await requestAdminConfirmation({
+      title: "Delete this section?",
+      description: "This will permanently remove the section and all questions inside it.",
+      confirmLabel: "Delete section",
+      tone: "danger",
     });
 
-    if (!response.ok) {
-      setMessage("Failed to delete section.");
+    if (!confirmed) {
       return;
     }
 
-    setSections((current) => current.filter((section) => (section.dbId || section.id) !== sectionId));
-    setMessage("Section deleted.");
-    router.refresh();
+    setDeletingSectionId(sectionId);
+    startOperation("Deleting section...");
+
+    try {
+      const response = await fetch(`/api/admin/assessment/sections/${sectionId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        setMessage("Failed to delete section.", "error");
+        return;
+      }
+
+      setSections((current) => current.filter((section) => (section.dbId || section.id) !== sectionId));
+      setMessage("Done: section deleted.");
+      refreshAfterFeedback();
+    } catch (error) {
+      console.error(error);
+      setMessage(error.message || "Failed to delete section.", "error");
+    } finally {
+      setDeletingSectionId("");
+      await finishOperation();
+    }
   };
 
   const createQuestion = async (sectionId) => {
     const payload = draftQuestions[sectionId];
 
     if (!payload?.prompt?.trim()) {
-      setMessage("Question prompt is required.");
+      setMessage("Question prompt is required.", "error");
       return;
     }
 
-    const response = await fetch("/api/admin/assessment/questions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sectionId,
-        ...payload,
-      }),
-    });
+    setCreatingQuestionSectionId(sectionId);
+    startOperation("Adding question...");
 
-    const json = await response.json();
+    try {
+      const response = await fetch("/api/admin/assessment/questions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sectionId,
+          ...payload,
+        }),
+      });
 
-    if (!response.ok) {
-      setMessage(json.error || "Failed to create question.");
-      return;
+      const json = await response.json();
+
+      if (!response.ok) {
+        setMessage(json.error || "Failed to create question.", "error");
+        return;
+      }
+
+      setSections((current) =>
+        current.map((section) =>
+          (section.dbId || section.id) === sectionId
+            ? {
+                ...section,
+                questions: [...section.questions, json.question].sort((a, b) => a.sortOrder - b.sortOrder),
+              }
+            : section
+        )
+      );
+      setDraftQuestions((current) => ({
+        ...current,
+        [sectionId]: { prompt: "", whyItMatters: "", weight: 1, scoreLabels: defaultScoreLabels, requiresTarget: true },
+      }));
+      setMessage("Done: question created.");
+      refreshAfterFeedback();
+    } catch (error) {
+      console.error(error);
+      setMessage(error.message || "Failed to create question.", "error");
+    } finally {
+      setCreatingQuestionSectionId("");
+      await finishOperation();
     }
-
-    setSections((current) =>
-      current.map((section) =>
-        (section.dbId || section.id) === sectionId
-          ? {
-              ...section,
-              questions: [...section.questions, json.question].sort((a, b) => a.sortOrder - b.sortOrder),
-            }
-          : section
-      )
-    );
-    setDraftQuestions((current) => ({
-      ...current,
-      [sectionId]: { prompt: "", whyItMatters: "", weight: 1, scoreLabels: defaultScoreLabels, requiresTarget: true },
-    }));
-    setMessage("Question created.");
-    router.refresh();
   };
 
   const updateQuestion = async (questionId, patch) => {
-    const response = await fetch(`/api/admin/assessment/questions/${questionId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
+    const confirmed = await requestAdminConfirmation({
+      title: "Save question changes?",
+      description: "This will update the question text, score labels, and related settings.",
+      confirmLabel: "Save question",
     });
-    const json = await response.json();
 
-    if (!response.ok) {
-      setMessage(json.error || "Failed to update question.");
+    if (!confirmed) {
       return;
     }
 
-    setSections((current) =>
-      current.map((section) => ({
-        ...section,
-        questions: section.questions.map((question) =>
-          (question.dbId || question.id) === questionId
-            ? {
-                ...question,
-                ...json.question,
-                id: question.id,
-                dbId: json.question.id,
-              }
-            : question
-        ),
-      }))
-    );
-    setMessage("Question updated.");
-    router.refresh();
+    setUpdatingQuestionId(questionId);
+    startOperation("Saving question...");
+
+    try {
+      const response = await fetch(`/api/admin/assessment/questions/${questionId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      const json = await response.json();
+
+      if (!response.ok) {
+        setMessage(json.error || "Failed to update question.", "error");
+        return;
+      }
+
+      setSections((current) =>
+        current.map((section) => ({
+          ...section,
+          questions: section.questions.map((question) =>
+            (question.dbId || question.id) === questionId
+              ? {
+                  ...question,
+                  ...json.question,
+                  id: question.id,
+                  dbId: json.question.id,
+                }
+              : question
+          ),
+        }))
+      );
+      setMessage("Done: question updated.");
+      refreshAfterFeedback();
+    } catch (error) {
+      console.error(error);
+      setMessage(error.message || "Failed to update question.", "error");
+    } finally {
+      setUpdatingQuestionId("");
+      await finishOperation();
+    }
   };
 
   const deleteQuestion = async (questionId) => {
-    const response = await fetch(`/api/admin/assessment/questions/${questionId}`, {
-      method: "DELETE",
+    const confirmed = await requestAdminConfirmation({
+      title: "Delete this question?",
+      description: "This will permanently remove the selected question from the assessment.",
+      confirmLabel: "Delete question",
+      tone: "danger",
     });
 
-    if (!response.ok) {
-      setMessage("Failed to delete question.");
+    if (!confirmed) {
       return;
     }
 
-    setSections((current) =>
-      current.map((section) => ({
-        ...section,
-        questions: section.questions.filter((question) => (question.dbId || question.id) !== questionId),
-      }))
-    );
-    setMessage("Question deleted.");
-    router.refresh();
+    setDeletingQuestionId(questionId);
+    startOperation("Deleting question...");
+
+    try {
+      const response = await fetch(`/api/admin/assessment/questions/${questionId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        setMessage("Failed to delete question.", "error");
+        return;
+      }
+
+      setSections((current) =>
+        current.map((section) => ({
+          ...section,
+          questions: section.questions.filter((question) => (question.dbId || question.id) !== questionId),
+        }))
+      );
+      setMessage("Done: question deleted.");
+      refreshAfterFeedback();
+    } catch (error) {
+      console.error(error);
+      setMessage(error.message || "Failed to delete question.", "error");
+    } finally {
+      setDeletingQuestionId("");
+      await finishOperation();
+    }
   };
 
   return (
@@ -382,7 +547,16 @@ export default function AdminDashboard({ initialSections, overview, adminUser, i
                     </button>
                   </div>
                   <div className="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">
-                    {settings?.reportGenerationEnabled ? "Enabled during assessment creation" : "Disabled during assessment creation"}
+                    {savingSettings ? (
+                      <span className="inline-flex items-center gap-2">
+                        <LoadingSpinner />
+                        Updating setting...
+                      </span>
+                    ) : settings?.reportGenerationEnabled ? (
+                      "Enabled during assessment creation"
+                    ) : (
+                      "Disabled during assessment creation"
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -442,9 +616,9 @@ export default function AdminDashboard({ initialSections, overview, adminUser, i
                   />
                   <FieldError message={newSectionErrors.weight} />
                 </Field>
-                <Button className="w-full rounded-full" onClick={createSection}>
-                  <FolderPlus className="size-4" />
-                  Add section
+                <Button className="w-full rounded-full" disabled={creatingSection} onClick={createSection}>
+                  {creatingSection ? <LoadingSpinner /> : <FolderPlus className="size-4" />}
+                  {creatingSection ? "Adding section..." : "Add section"}
                 </Button>
               </CardContent>
             </Card>
@@ -498,11 +672,29 @@ export default function AdminDashboard({ initialSections, overview, adminUser, i
                 onCreateQuestion={createQuestion}
                 onSaveQuestion={updateQuestion}
                 onDeleteQuestion={deleteQuestion}
+                isUpdatingSection={updatingSectionId === (section.dbId || section.id)}
+                isDeletingSection={deletingSectionId === (section.dbId || section.id)}
+                isCreatingQuestion={creatingQuestionSectionId === (section.dbId || section.id)}
+                updatingQuestionId={updatingQuestionId}
+                deletingQuestionId={deletingQuestionId}
               />
             ))}
           </div>
         </div>
       </div>
+      <OperationOverlay message={loadingMessage} />
+      <OperationNotification notification={notification} onClose={() => setNotification(null)} />
+      <AdminConfirmationDialog
+        dialog={confirmDialog}
+        onCancel={() => {
+          confirmDialog?.resolve(false);
+          setConfirmDialog(null);
+        }}
+        onConfirm={() => {
+          confirmDialog?.resolve(true);
+          setConfirmDialog(null);
+        }}
+      />
     </div>
   );
 }
@@ -543,6 +735,11 @@ function SectionEditor({
   onCreateQuestion,
   onSaveQuestion,
   onDeleteQuestion,
+  isUpdatingSection,
+  isDeletingSection,
+  isCreatingQuestion,
+  updatingQuestionId,
+  deletingQuestionId,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [errors, setErrors] = useState({});
@@ -620,13 +817,14 @@ function SectionEditor({
           <Button
             variant="ghost"
             className="rounded-full text-rose-600 hover:text-rose-700"
+            disabled={isDeletingSection}
             onClick={(event) => {
               event.stopPropagation();
               onDeleteSection(section.dbId || section.id);
             }}
           >
-            <Trash2 className="size-4" />
-            Delete
+            {isDeletingSection ? <LoadingSpinner /> : <Trash2 className="size-4" />}
+            {isDeletingSection ? "Deleting..." : "Delete"}
           </Button>
         </div>
       </CardHeader>
@@ -693,12 +891,14 @@ function SectionEditor({
           <div className="flex justify-end">
             <Button
               className="rounded-full"
+              disabled={isUpdatingSection}
               onClick={() => {
                 if (!validateSection()) return;
                 onSaveSection(section.dbId || section.id, draft);
               }}
             >
-              Save section
+              {isUpdatingSection ? <LoadingSpinner /> : null}
+              {isUpdatingSection ? "Saving section..." : "Save section"}
           </Button>
         </div>
 
@@ -713,6 +913,8 @@ function SectionEditor({
               question={question}
               onSave={onSaveQuestion}
               onDelete={onDeleteQuestion}
+              isSaving={updatingQuestionId === (question.dbId || question.id)}
+              isDeleting={deletingQuestionId === (question.dbId || question.id)}
             />
           ))}
 
@@ -782,12 +984,14 @@ function SectionEditor({
               />
               <Button
                 className="rounded-full"
+                disabled={isCreatingQuestion}
                 onClick={() => {
                   if (!validateNewQuestion()) return;
                   onCreateQuestion(section.dbId || section.id);
                 }}
               >
-                Add question
+                {isCreatingQuestion ? <LoadingSpinner /> : null}
+                {isCreatingQuestion ? "Adding question..." : "Add question"}
               </Button>
             </div>
           </div>
@@ -798,7 +1002,7 @@ function SectionEditor({
   );
 }
 
-function QuestionEditor({ question, onSave, onDelete }) {
+function QuestionEditor({ question, onSave, onDelete, isSaving, isDeleting }) {
   const [errors, setErrors] = useState({});
   const [draft, setDraft] = useState({
     prompt: question.prompt,
@@ -926,18 +1130,25 @@ function QuestionEditor({ question, onSave, onDelete }) {
           }}
         />
         <div className="flex flex-wrap justify-between gap-3">
-          <Button variant="ghost" className="rounded-full text-rose-600 hover:text-rose-700" onClick={() => onDelete(question.dbId || question.id)}>
-            <Trash2 className="size-4" />
-            Delete
+          <Button
+            variant="ghost"
+            className="rounded-full text-rose-600 hover:text-rose-700"
+            disabled={isSaving || isDeleting}
+            onClick={() => onDelete(question.dbId || question.id)}
+          >
+            {isDeleting ? <LoadingSpinner /> : <Trash2 className="size-4" />}
+            {isDeleting ? "Deleting..." : "Delete"}
           </Button>
           <Button
             className="rounded-full"
+            disabled={isSaving || isDeleting}
             onClick={() => {
               if (!validateQuestion()) return;
               onSave(question.dbId || question.id, draft);
             }}
           >
-            Save question
+            {isSaving ? <LoadingSpinner /> : null}
+            {isSaving ? "Saving question..." : "Save question"}
           </Button>
         </div>
       </div>
@@ -980,4 +1191,77 @@ function Field({ label, children, className = "" }) {
 function FieldError({ message }) {
   if (!message) return null;
   return <p className="text-sm text-rose-600">{message}</p>;
+}
+
+function LoadingSpinner() {
+  return <Loader2 className="size-4 animate-spin" aria-hidden="true" />;
+}
+
+function AdminConfirmationDialog({ dialog, onCancel, onConfirm }) {
+  if (!dialog) return null;
+
+  const isDanger = dialog.tone === "danger";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-[2rem] border border-white/70 bg-white p-6 shadow-[0_32px_120px_rgba(15,23,42,0.28)]">
+        <div
+          className={`inline-flex rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] ${
+            isDanger ? "border border-rose-100 bg-rose-50 text-rose-700" : "border border-cyan-100 bg-cyan-50 text-cyan-800"
+          }`}
+        >
+          {isDanger ? "Confirm delete" : "Confirm changes"}
+        </div>
+        <h2 className="font-heading mt-5 text-2xl font-semibold tracking-tight text-slate-950">{dialog.title}</h2>
+        <p className="mt-3 text-sm leading-6 text-slate-600">{dialog.description}</p>
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
+          <Button variant="outline" className="rounded-full" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            className={`rounded-full ${isDanger ? "bg-rose-600 text-white hover:bg-rose-700" : "bg-slate-950 text-white hover:bg-slate-800"}`}
+            onClick={onConfirm}
+          >
+            {dialog.confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OperationOverlay({ message }) {
+  if (!message) return null;
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/20 px-6 backdrop-blur-[1px]" role="status" aria-live="polite">
+      <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-semibold text-slate-950 shadow-2xl">
+        <Loader2 className="size-5 animate-spin text-cyan-700" aria-hidden="true" />
+        {message}
+      </div>
+    </div>
+  );
+}
+
+function OperationNotification({ notification, onClose }) {
+  if (!notification) return null;
+
+  const isError = notification.type === "error";
+  const Icon = isError ? AlertCircle : CheckCircle2;
+  const tone = isError
+    ? "border-rose-200 bg-rose-50 text-rose-900"
+    : "border-emerald-200 bg-emerald-50 text-emerald-900";
+  const iconTone = isError ? "text-rose-600" : "text-emerald-600";
+
+  return (
+    <div className={`fixed right-6 top-6 z-50 max-w-sm rounded-2xl border px-4 py-3 shadow-xl ${tone}`} role="status" aria-live="polite">
+      <div className="flex items-start gap-3">
+        <Icon className={`mt-0.5 size-5 shrink-0 ${iconTone}`} />
+        <p className="text-sm font-medium">{notification.message}</p>
+        <button type="button" className="ml-auto opacity-70 transition hover:opacity-100" onClick={onClose} aria-label="Close notification">
+          <X className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
 }

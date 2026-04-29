@@ -141,7 +141,9 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
   const summaryStep = sections.length + 1;
   const reportStep = sections.length + 2;
   const activeSection = currentStep > 0 && currentStep < summaryStep ? sections[currentStep - 1] : null;
-  const progress = Math.round((Math.min(currentStep, reportStep) / reportStep) * 100);
+  const progress = assessment.totalQuestions
+    ? Math.round((assessment.completedQuestions / assessment.totalQuestions) * 100)
+    : 0;
   const reportIsSaved = currentStep === reportStep && saveState === "saved" && Boolean(savedReportId);
   const reportIsGenerating = currentStep === reportStep && !reportIsSaved;
 
@@ -149,6 +151,16 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
     subject: section.title,
     value: section.score,
   }));
+  const sectionCompletion = useMemo(
+    () =>
+      sections.map((section) => ({
+        id: section.id,
+        title: section.title,
+        complete: section.questions.every((question) => isResolvedResponse(draft.responses[question.id], question.requiresTarget)),
+      })),
+    [draft.responses, sections]
+  );
+  const allQuestionsAnswered = sectionCompletion.every((section) => section.complete);
 
   useEffect(() => {
     if (currentStep !== reportStep || savedReportId || hasAutoSubmitted || saveState === "saving" || status === "loading") {
@@ -408,6 +420,33 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
     setCurrentStep((step) => Math.max(step - 1, 0));
   };
 
+  const handleSidebarStepChange = (targetStep) => {
+    if (targetStep === currentStep) {
+      return;
+    }
+
+    if (targetStep === 0) {
+      setReturnStep(null);
+      setCurrentStep(0);
+      return;
+    }
+
+    if (targetStep > 0 && targetStep < summaryStep) {
+      if (!canContinueFromProfile) {
+        return;
+      }
+
+      setReturnStep(null);
+      setCurrentStep(targetStep);
+      return;
+    }
+
+    if ((targetStep === summaryStep || targetStep === reportStep) && allQuestionsAnswered) {
+      setReturnStep(null);
+      setCurrentStep(targetStep);
+    }
+  };
+
   const saveDraftHint =
     saveState === "saved"
       ? "Report generated and saved."
@@ -459,28 +498,39 @@ export default function AssessmentWorkspace({ sections, restoreDraft = false, re
               </div>
 
               <div className="space-y-3">
-                {["Profile", ...sections.map((section) => section.title), "Review", "Report"].map((label, index) => {
-                  const complete = index < currentStep || (label === "Report" && reportIsSaved);
-                  const active = index === currentStep;
+                {[
+                  { label: "Profile", step: 0, enabled: true, complete: canContinueFromProfile },
+                  ...sectionCompletion.map((section, index) => ({
+                    label: section.title,
+                    step: index + 1,
+                    enabled: canContinueFromProfile,
+                    complete: section.complete,
+                  })),
+                  { label: "Review", step: summaryStep, enabled: allQuestionsAnswered, complete: currentStep > summaryStep || allQuestionsAnswered },
+                  { label: "Report", step: reportStep, enabled: allQuestionsAnswered, complete: reportIsSaved },
+                ].map((item, index) => {
+                  const active = item.step === currentStep;
 
                   return (
-                    <div
-                      key={label}
-                      className={`flex items-center gap-3 rounded-2xl px-3 py-2 text-sm ${
-                        active ? "bg-white/12 text-white" : "text-white/72"
-                      }`}
+                    <button
+                      key={item.label}
+                      type="button"
+                      disabled={!item.enabled}
+                      onClick={() => handleSidebarStepChange(item.step)}
+                      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left text-sm transition ${
+                        active ? "bg-white/12 text-white" : item.enabled ? "text-white/72 hover:bg-white/8 hover:text-white" : "text-white/38"
+                      } ${item.enabled ? "cursor-pointer" : "cursor-not-allowed"}`}
                     >
-                      {complete ? (
-                        <CheckCircle2 className="size-4 text-cyan-300" />
-                      ) : active ? (
-                        <CircleDashed className="size-4 text-cyan-300" />
+                      {active ? (
+                        <CircleDashed className="size-4 shrink-0 text-cyan-300" />
                       ) : (
-                        <span className="flex size-4 items-center justify-center rounded-full border border-white/25 text-[10px]">
+                        <span className={`flex size-4 shrink-0 items-center justify-center rounded-full border text-[10px] ${item.enabled ? "border-white/25" : "border-white/15"}`}>
                           {index + 1}
                         </span>
                       )}
-                      <span>{label}</span>
-                    </div>
+                      <span className="min-w-0 flex-1">{item.label}</span>
+                      {item.complete ? <CheckCircle2 className="size-4 shrink-0 text-cyan-300" /> : null}
+                    </button>
                   );
                 })}
               </div>
